@@ -515,6 +515,7 @@
         <div class="actions">
           <a
             class="action action-secondary"
+            id="soop-link"
             href="https://m.sooplive.com/statistics/a/watch/?szModule=UserLiveWatchTimeData&amp;szMethod=watch"
             target="_blank"
             rel="noopener noreferrer"
@@ -577,7 +578,10 @@
   <textarea id="copy-fallback" aria-hidden="true" tabindex="-1" readonly style="position:fixed;left:0;top:0;width:1px;height:1px;padding:0;border:0;opacity:0.01;pointer-events:none;font-size:16px;"></textarea>
 
   <script>
+    const SOOP_URL = "https://m.sooplive.com/statistics/a/watch/?szModule=UserLiveWatchTimeData&szMethod=watch";
+    const CHROME_INTENT_URL = "intent://m.sooplive.com/statistics/a/watch/?szModule=UserLiveWatchTimeData&szMethod=watch#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=" + encodeURIComponent(SOOP_URL) + ";end";
     const RECAP_CODE = "!function(){var s=document.createElement('script');s.id='soop-recap-loader';s.src='https://cdn.jsdelivr.net/gh/ygtqqq/soop_recap@main/recap.js';document.head.appendChild(s)}();";
+    const soopLink = document.getElementById("soop-link");
     const copyButton = document.getElementById("copy-button");
     const copyLabel = document.getElementById("copy-label");
     const copyStatus = document.getElementById("copy-status");
@@ -587,6 +591,12 @@
     let resetTimer;
 
     codePreview.textContent = RECAP_CODE;
+
+    if (/Android/i.test(navigator.userAgent)) {
+      soopLink.href = CHROME_INTENT_URL;
+      soopLink.target = "_top";
+      soopLink.setAttribute("aria-label", "Chrome로 숲바로가기");
+    }
 
     function copyWithSelection() {
       fallbackField.value = RECAP_CODE;
