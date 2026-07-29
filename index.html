@@ -1,0 +1,632 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#071225">
+  <meta name="description" content="SOOP 시청 통계 바로가기와 SOOP 리캡 실행 코드 복사 도구">
+  <meta property="og:title" content="SOOP RECAP">
+  <meta property="og:description" content="시청 통계로 이동하고 리캡 코드를 간편하게 복사하세요.">
+  <meta property="og:type" content="website">
+  <title>SOOP RECAP</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Gasoek+One&family=Gowun+Dodum&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #061022;
+      --navy: #071225;
+      --navy-soft: #0d1b33;
+      --blue: #1769ff;
+      --blue-bright: #4d91ff;
+      --cyan: #61d9ff;
+      --paper: #f6f8fc;
+      --muted: #98a7be;
+      --line: rgba(255, 255, 255, 0.12);
+      --success: #4be1a0;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      min-height: 100%;
+      background: var(--navy);
+    }
+
+    body {
+      min-height: 100vh;
+      min-height: 100svh;
+      margin: 0;
+      overflow-x: hidden;
+      color: var(--paper);
+      font-family: "Gowun Dodum", sans-serif;
+      background:
+        radial-gradient(circle at 84% 10%, rgba(23, 105, 255, 0.42), transparent 31rem),
+        radial-gradient(circle at 10% 88%, rgba(97, 217, 255, 0.13), transparent 25rem),
+        var(--navy);
+    }
+
+    body::before {
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      content: "";
+      pointer-events: none;
+      opacity: 0.34;
+      background-image:
+        linear-gradient(rgba(255, 255, 255, 0.028) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.028) 1px, transparent 1px);
+      background-size: 32px 32px;
+      mask-image: linear-gradient(to bottom, black, transparent 82%);
+    }
+
+    .shell {
+      position: relative;
+      display: grid;
+      place-items: center;
+      width: min(100%, 760px);
+      min-height: 100vh;
+      min-height: 100svh;
+      margin: 0 auto;
+      padding: max(28px, env(safe-area-inset-top)) 20px max(32px, env(safe-area-inset-bottom));
+    }
+
+    .orbit {
+      position: absolute;
+      top: 7%;
+      right: -18%;
+      width: 330px;
+      aspect-ratio: 1;
+      border: 1px solid rgba(97, 217, 255, 0.15);
+      border-radius: 50%;
+      pointer-events: none;
+      animation: drift 9s ease-in-out infinite;
+    }
+
+    .orbit::before,
+    .orbit::after {
+      position: absolute;
+      inset: 15%;
+      content: "";
+      border: inherit;
+      border-radius: inherit;
+    }
+
+    .orbit::after {
+      inset: 32%;
+      border-color: rgba(77, 145, 255, 0.28);
+    }
+
+    .panel {
+      position: relative;
+      width: 100%;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: linear-gradient(145deg, rgba(15, 31, 58, 0.96), rgba(7, 18, 37, 0.91));
+      box-shadow:
+        0 36px 100px rgba(0, 0, 0, 0.42),
+        inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      backdrop-filter: blur(18px);
+      animation: rise 620ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    }
+
+    .panel::after {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 45%;
+      height: 3px;
+      content: "";
+      background: linear-gradient(90deg, var(--cyan), var(--blue), transparent);
+    }
+
+    .masthead {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 22px 24px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: #dce8fb;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.17em;
+    }
+
+    .live-dot {
+      position: relative;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 18px var(--cyan);
+    }
+
+    .live-dot::after {
+      position: absolute;
+      inset: -5px;
+      content: "";
+      border: 1px solid rgba(97, 217, 255, 0.5);
+      border-radius: 50%;
+      animation: pulse 1.9s ease-out infinite;
+    }
+
+    .version {
+      color: var(--muted);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+    }
+
+    .content {
+      padding: clamp(32px, 7vw, 56px);
+    }
+
+    .kicker {
+      margin: 0 0 14px;
+      color: var(--blue-bright);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.2em;
+    }
+
+    h1 {
+      max-width: 540px;
+      margin: 0;
+      font-family: "Gasoek One", sans-serif;
+      font-size: clamp(42px, 10vw, 74px);
+      font-weight: 400;
+      line-height: 0.98;
+      letter-spacing: -0.035em;
+      text-wrap: balance;
+    }
+
+    .intro {
+      max-width: 500px;
+      margin: 20px 0 0;
+      color: #b6c4d8;
+      font-size: clamp(15px, 3.7vw, 18px);
+      line-height: 1.75;
+      word-break: keep-all;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 34px;
+    }
+
+    .action {
+      position: relative;
+      display: flex;
+      min-height: 72px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      overflow: hidden;
+      padding: 0 20px;
+      border: 0;
+      border-radius: 16px;
+      color: inherit;
+      font: inherit;
+      font-size: 17px;
+      font-weight: 700;
+      text-align: left;
+      text-decoration: none;
+      cursor: pointer;
+      transition:
+        transform 180ms ease,
+        box-shadow 180ms ease,
+        border-color 180ms ease,
+        background 180ms ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .action::before {
+      position: absolute;
+      inset: 0;
+      content: "";
+      opacity: 0;
+      background: linear-gradient(110deg, transparent 20%, rgba(255, 255, 255, 0.22), transparent 80%);
+      transform: translateX(-70%);
+      transition: opacity 180ms ease, transform 480ms ease;
+    }
+
+    .action:hover {
+      transform: translateY(-3px);
+    }
+
+    .action:hover::before {
+      opacity: 1;
+      transform: translateX(70%);
+    }
+
+    .action:active {
+      transform: translateY(0) scale(0.985);
+    }
+
+    .action:focus-visible {
+      outline: 3px solid var(--cyan);
+      outline-offset: 3px;
+    }
+
+    .action-primary {
+      background: var(--blue);
+      box-shadow: 0 16px 38px rgba(23, 105, 255, 0.28);
+    }
+
+    .action-primary:hover {
+      box-shadow: 0 20px 46px rgba(23, 105, 255, 0.42);
+    }
+
+    .action-primary.copied {
+      color: var(--ink);
+      background: var(--success);
+      box-shadow: 0 18px 42px rgba(75, 225, 160, 0.28);
+    }
+
+    .action-secondary {
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: rgba(255, 255, 255, 0.075);
+    }
+
+    .action-secondary:hover {
+      border-color: rgba(97, 217, 255, 0.5);
+      background: rgba(255, 255, 255, 0.11);
+    }
+
+    .action-icon {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      flex: 0 0 38px;
+      width: 38px;
+      aspect-ratio: 1;
+      place-items: center;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.14);
+    }
+
+    .action-label {
+      position: relative;
+      z-index: 1;
+      flex: 1;
+    }
+
+    .action svg {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: currentColor;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-width: 2;
+    }
+
+    .guide {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      margin-top: 34px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--line);
+    }
+
+    .step {
+      min-height: 116px;
+      padding: 18px;
+      background: rgba(5, 15, 31, 0.72);
+    }
+
+    .step-number {
+      display: block;
+      margin-bottom: 12px;
+      color: var(--cyan);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+    }
+
+    .step p {
+      margin: 0;
+      color: #c4d0e1;
+      font-size: 13px;
+      line-height: 1.55;
+      word-break: keep-all;
+    }
+
+    details {
+      margin-top: 16px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(2, 9, 20, 0.5);
+    }
+
+    summary {
+      padding: 15px 17px;
+      color: var(--muted);
+      font-size: 13px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .code {
+      margin: 0;
+      padding: 0 17px 17px;
+      color: #c9eaff;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 11px;
+      line-height: 1.65;
+      white-space: pre-wrap;
+      word-break: break-all;
+      user-select: all;
+    }
+
+    .status {
+      min-height: 24px;
+      margin: 14px 2px 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .status.success {
+      color: var(--success);
+    }
+
+    .status.error {
+      color: #ff9d9d;
+    }
+
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 24px;
+      border-top: 1px solid var(--line);
+      color: #6f809b;
+      font-size: 11px;
+    }
+
+    .signal {
+      display: flex;
+      height: 14px;
+      align-items: flex-end;
+      gap: 3px;
+    }
+
+    .signal span {
+      display: block;
+      width: 3px;
+      border-radius: 2px;
+      background: var(--blue-bright);
+    }
+
+    .signal span:nth-child(1) { height: 4px; }
+    .signal span:nth-child(2) { height: 7px; }
+    .signal span:nth-child(3) { height: 10px; }
+    .signal span:nth-child(4) { height: 14px; }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(18px) scale(0.985);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes pulse {
+      0% {
+        opacity: 0.8;
+        transform: scale(0.65);
+      }
+      100% {
+        opacity: 0;
+        transform: scale(1.5);
+      }
+    }
+
+    @keyframes drift {
+      0%, 100% { transform: translate3d(0, 0, 0); }
+      50% { transform: translate3d(-14px, 18px, 0); }
+    }
+
+    @media (max-width: 620px) {
+      .shell {
+        align-items: start;
+        padding-inline: 12px;
+      }
+
+      .panel {
+        border-radius: 22px;
+      }
+
+      .masthead {
+        padding: 18px;
+      }
+
+      .content {
+        padding: 30px 18px 24px;
+      }
+
+      .actions {
+        grid-template-columns: 1fr;
+      }
+
+      .guide {
+        grid-template-columns: 1fr;
+      }
+
+      .step {
+        min-height: auto;
+      }
+
+      .footer {
+        padding: 16px 18px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="orbit" aria-hidden="true"></div>
+
+    <section class="panel" aria-labelledby="page-title">
+      <header class="masthead">
+        <div class="brand">
+          <span class="live-dot" aria-hidden="true"></span>
+          SOOP RECAP
+        </div>
+        <span class="version">WATCH DATA / 01</span>
+      </header>
+
+      <div class="content">
+        <p class="kicker">YOUR WATCH HISTORY, RECAPTURED</p>
+        <h1 id="page-title">시청 기록을<br>한 번에.</h1>
+        <p class="intro">
+          SOOP 시청 통계 페이지를 열고 리캡 실행 코드를 복사하세요.
+          복잡한 설치 없이 두 번의 터치면 준비 끝.
+        </p>
+
+        <div class="actions">
+          <a
+            class="action action-secondary"
+            href="https://m.sooplive.com/statistics/a/watch/?szModule=UserLiveWatchTimeData&amp;szMethod=watch"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <span class="action-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M14 5h5v5"></path>
+                <path d="M10 14 19 5"></path>
+                <path d="M19 13v6H5V5h6"></path>
+              </svg>
+            </span>
+            <span class="action-label">숲바로가기</span>
+          </a>
+
+          <button class="action action-primary" id="copy-button" type="button">
+            <span class="action-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <rect x="8" y="8" width="11" height="11" rx="2"></rect>
+                <path d="M16 8V5H5v11h3"></path>
+              </svg>
+            </span>
+            <span class="action-label" id="copy-label">숲리캡복사하기</span>
+          </button>
+        </div>
+
+        <p class="status" id="copy-status" aria-live="polite">
+          복사 버튼을 누르면 실행 코드가 클립보드에 저장됩니다.
+        </p>
+
+        <div class="guide" aria-label="사용 순서">
+          <div class="step">
+            <span class="step-number">STEP 01</span>
+            <p>숲바로가기로 시청 통계 페이지를 엽니다.</p>
+          </div>
+          <div class="step">
+            <span class="step-number">STEP 02</span>
+            <p>숲리캡복사하기를 눌러 코드를 복사합니다.</p>
+          </div>
+          <div class="step">
+            <span class="step-number">STEP 03</span>
+            <p>통계 페이지 개발자 콘솔에 붙여넣고 실행합니다.</p>
+          </div>
+        </div>
+
+        <details>
+          <summary>복사되는 코드 직접 보기</summary>
+          <pre class="code" id="code-preview"></pre>
+        </details>
+      </div>
+
+      <footer class="footer">
+        <span>SOOP RECAP LAUNCHER</span>
+        <span class="signal" aria-label="연결됨">
+          <span></span><span></span><span></span><span></span>
+        </span>
+      </footer>
+    </section>
+  </main>
+
+  <textarea id="copy-fallback" aria-hidden="true" tabindex="-1" style="position:fixed;left:-9999px;top:-9999px;"></textarea>
+
+  <script>
+    const RECAP_CODE = "!function(){var s=document.createElement('script');s.id='soop-recap-loader';s.src='https://cdn.jsdelivr.net/gh/ygtqqq/soop_recap@main/recap.js';document.head.appendChild(s)}();";
+    const copyButton = document.getElementById("copy-button");
+    const copyLabel = document.getElementById("copy-label");
+    const copyStatus = document.getElementById("copy-status");
+    const codePreview = document.getElementById("code-preview");
+    const fallbackField = document.getElementById("copy-fallback");
+    let resetTimer;
+
+    codePreview.textContent = RECAP_CODE;
+
+    async function copyRecapCode() {
+      let copied = false;
+
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(RECAP_CODE);
+          copied = true;
+        } else {
+          fallbackField.value = RECAP_CODE;
+          fallbackField.focus();
+          fallbackField.select();
+          copied = document.execCommand("copy");
+        }
+      } catch {
+        copied = false;
+      }
+
+      window.clearTimeout(resetTimer);
+      copyStatus.classList.remove("success", "error");
+
+      if (copied) {
+        copyButton.classList.add("copied");
+        copyLabel.textContent = "복사 완료";
+        copyStatus.textContent = "클립보드에 저장됐습니다. SOOP 통계 페이지에서 붙여넣으세요.";
+        copyStatus.classList.add("success");
+
+        resetTimer = window.setTimeout(() => {
+          copyButton.classList.remove("copied");
+          copyLabel.textContent = "숲리캡복사하기";
+          copyStatus.textContent = "복사 버튼을 누르면 실행 코드가 클립보드에 저장됩니다.";
+          copyStatus.classList.remove("success");
+        }, 3200);
+      } else {
+        copyLabel.textContent = "다시 시도";
+        copyStatus.textContent = "자동 복사가 차단됐습니다. 아래 ‘코드 직접 보기’에서 길게 눌러 복사하세요.";
+        copyStatus.classList.add("error");
+      }
+    }
+
+    copyButton.addEventListener("click", copyRecapCode);
+  </script>
+</body>
+</html>
