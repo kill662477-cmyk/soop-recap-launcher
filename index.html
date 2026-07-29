@@ -508,7 +508,7 @@
         <p class="kicker">YOUR WATCH HISTORY, RECAPTURED</p>
         <h1 id="page-title">시청 기록을<br>한 번에.</h1>
         <p class="intro">
-          SOOP 시청 통계 페이지를 열고 리캡 실행 코드를 복사하세요.
+          SOOP 시청 통계 페이지를 열고 주소창 실행용 리캡 코드를 복사하세요.
           복잡한 설치 없이 두 번의 터치면 준비 끝.
         </p>
 
@@ -541,7 +541,7 @@
         </div>
 
         <p class="status" id="copy-status" aria-live="polite">
-          복사 버튼을 누르면 실행 코드가 클립보드에 저장됩니다.
+          복사 후 주소창에 <strong>javascript:</strong>를 직접 입력하고 이어 붙이세요.
         </p>
 
         <div class="guide" aria-label="사용 순서">
@@ -551,17 +551,17 @@
           </div>
           <div class="step">
             <span class="step-number">STEP 02</span>
-            <p>숲리캡복사하기를 눌러 코드를 복사합니다.</p>
+            <p>숲리캡복사하기를 눌러 접두어 없는 코드를 복사합니다.</p>
           </div>
           <div class="step">
             <span class="step-number">STEP 03</span>
-            <p>통계 페이지 개발자 콘솔에 붙여넣고 실행합니다.</p>
+            <p>통계 페이지 주소창에 <strong>javascript:</strong>를 직접 입력하고 바로 뒤에 코드를 붙여넣어 실행합니다.</p>
           </div>
         </div>
 
-        <details>
-          <summary>복사되는 코드 직접 보기</summary>
-          <pre class="code" id="code-preview"></pre>
+        <details id="manual-copy">
+          <summary>복사되는 코드 직접 보기 (javascript: 제외)</summary>
+          <pre class="code" id="code-preview" tabindex="0"></pre>
         </details>
       </div>
 
@@ -574,7 +574,7 @@
     </section>
   </main>
 
-  <textarea id="copy-fallback" aria-hidden="true" tabindex="-1" style="position:fixed;left:-9999px;top:-9999px;"></textarea>
+  <textarea id="copy-fallback" aria-hidden="true" tabindex="-1" readonly style="position:fixed;left:0;top:0;width:1px;height:1px;padding:0;border:0;opacity:0.01;pointer-events:none;font-size:16px;"></textarea>
 
   <script>
     const RECAP_CODE = "!function(){var s=document.createElement('script');s.id='soop-recap-loader';s.src='https://cdn.jsdelivr.net/gh/ygtqqq/soop_recap@main/recap.js';document.head.appendChild(s)}();";
@@ -583,25 +583,43 @@
     const copyStatus = document.getElementById("copy-status");
     const codePreview = document.getElementById("code-preview");
     const fallbackField = document.getElementById("copy-fallback");
+    const manualCopy = document.getElementById("manual-copy");
     let resetTimer;
 
     codePreview.textContent = RECAP_CODE;
 
+    function copyWithSelection() {
+      fallbackField.value = RECAP_CODE;
+      fallbackField.removeAttribute("aria-hidden");
+      fallbackField.focus();
+      fallbackField.select();
+      fallbackField.setSelectionRange(0, RECAP_CODE.length);
+
+      const copied = document.execCommand("copy");
+
+      fallbackField.blur();
+      fallbackField.setAttribute("aria-hidden", "true");
+      return copied;
+    }
+
     async function copyRecapCode() {
       let copied = false;
 
-      try {
-        if (navigator.clipboard && window.isSecureContext) {
+      if (navigator.clipboard && window.isSecureContext) {
+        try {
           await navigator.clipboard.writeText(RECAP_CODE);
           copied = true;
-        } else {
-          fallbackField.value = RECAP_CODE;
-          fallbackField.focus();
-          fallbackField.select();
-          copied = document.execCommand("copy");
+        } catch {
+          copied = false;
         }
-      } catch {
-        copied = false;
+      }
+
+      if (!copied) {
+        try {
+          copied = copyWithSelection();
+        } catch {
+          copied = false;
+        }
       }
 
       window.clearTimeout(resetTimer);
@@ -610,19 +628,20 @@
       if (copied) {
         copyButton.classList.add("copied");
         copyLabel.textContent = "복사 완료";
-        copyStatus.textContent = "클립보드에 저장됐습니다. SOOP 통계 페이지에서 붙여넣으세요.";
+        copyStatus.innerHTML = "복사 완료. 주소창에 <strong>javascript:</strong>를 직접 입력하고 바로 뒤에 붙여넣으세요.";
         copyStatus.classList.add("success");
 
         resetTimer = window.setTimeout(() => {
           copyButton.classList.remove("copied");
           copyLabel.textContent = "숲리캡복사하기";
-          copyStatus.textContent = "복사 버튼을 누르면 실행 코드가 클립보드에 저장됩니다.";
+          copyStatus.innerHTML = "복사 후 주소창에 <strong>javascript:</strong>를 직접 입력하고 이어 붙이세요.";
           copyStatus.classList.remove("success");
         }, 3200);
       } else {
         copyLabel.textContent = "다시 시도";
-        copyStatus.textContent = "자동 복사가 차단됐습니다. 아래 ‘코드 직접 보기’에서 길게 눌러 복사하세요.";
+        copyStatus.textContent = "복사가 차단됐습니다. 아래 코드를 길게 눌러 직접 복사하세요.";
         copyStatus.classList.add("error");
+        manualCopy.open = true;
       }
     }
 
