@@ -4,11 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#071225">
-  <meta name="description" content="SOOP 시청 통계 바로가기와 SOOP 리캡 실행 코드 복사 도구">
-  <meta property="og:title" content="SOOP RECAP">
-  <meta property="og:description" content="시청 통계로 이동하고 리캡 코드를 간편하게 복사하세요.">
+  <meta name="description" content="와이고수 툴 모음 - SOOP 리캡, 미네랄 기부 랭킹, 스타대학 월간 활동 랭킹">
+  <meta property="og:title" content="YGOSU TOOLS">
+  <meta property="og:description" content="와이고수 툴 모음. 탭에서 원하는 도구를 고르세요.">
   <meta property="og:type" content="website">
-  <title>SOOP RECAP</title>
+  <title>YGOSU TOOLS</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Gasoek+One&family=Gowun+Dodum&display=swap" rel="stylesheet">
@@ -24,6 +24,8 @@
       --muted: #98a7be;
       --line: rgba(255, 255, 255, 0.12);
       --success: #4be1a0;
+      --gold: #f5b94e;
+      --rose: #ff7a70;
     }
 
     * {
@@ -42,6 +44,7 @@
       overflow-x: hidden;
       color: var(--paper);
       font-family: "Gowun Dodum", sans-serif;
+      word-break: keep-all;
       background:
         radial-gradient(circle at 84% 10%, rgba(23, 105, 255, 0.42), transparent 31rem),
         radial-gradient(circle at 10% 88%, rgba(97, 217, 255, 0.13), transparent 25rem),
@@ -71,6 +74,13 @@
       min-height: 100svh;
       margin: 0 auto;
       padding: max(28px, env(safe-area-inset-top)) 20px max(32px, env(safe-area-inset-bottom));
+      transition: width 260ms ease;
+    }
+
+    /* 데이터가 넓게 펼쳐지는 탭(data-wide)에서는 패널을 넓힘 */
+    body.is-wide .shell {
+      width: min(100%, 1180px);
+      align-items: start;
     }
 
     .orbit {
@@ -165,6 +175,80 @@
       letter-spacing: 0.1em;
     }
 
+    /* ── tabs ───────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      gap: 6px;
+      padding: 10px 14px 0;
+      overflow-x: auto;
+      border-bottom: 1px solid var(--line);
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .tabs::-webkit-scrollbar {
+      display: none;
+    }
+
+    .tab {
+      position: relative;
+      flex: 0 0 auto;
+      padding: 12px 16px 13px;
+      border: 0;
+      border-radius: 12px 12px 0 0;
+      color: var(--muted);
+      background: transparent;
+      font: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: color 160ms ease, background 160ms ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .tab::after {
+      position: absolute;
+      right: 12px;
+      bottom: -1px;
+      left: 12px;
+      height: 2px;
+      content: "";
+      border-radius: 2px;
+      background: linear-gradient(90deg, var(--cyan), var(--blue));
+      opacity: 0;
+      transform: scaleX(0.4);
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+
+    .tab:hover {
+      color: #cfdcf0;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .tab[aria-selected="true"] {
+      color: var(--paper);
+      background: rgba(255, 255, 255, 0.07);
+    }
+
+    .tab[aria-selected="true"]::after {
+      opacity: 1;
+      transform: scaleX(1);
+    }
+
+    .tab:focus-visible {
+      outline: 3px solid var(--cyan);
+      outline-offset: -3px;
+    }
+
+    .tool-panel[hidden] {
+      display: none;
+    }
+
+    .tool-panel {
+      animation: fade 260ms ease both;
+    }
+
     .content {
       padding: clamp(32px, 7vw, 56px);
     }
@@ -181,7 +265,7 @@
       max-width: 540px;
       margin: 0;
       font-family: "Gasoek One", sans-serif;
-      font-size: clamp(42px, 10vw, 74px);
+      font-size: clamp(38px, 9vw, 66px);
       font-weight: 400;
       line-height: 0.98;
       letter-spacing: -0.035em;
@@ -189,12 +273,11 @@
     }
 
     .intro {
-      max-width: 500px;
+      max-width: 560px;
       margin: 20px 0 0;
       color: #b6c4d8;
       font-size: clamp(15px, 3.7vw, 18px);
       line-height: 1.75;
-      word-break: keep-all;
     }
 
     .actions {
@@ -342,7 +425,6 @@
       color: #c4d0e1;
       font-size: 13px;
       line-height: 1.55;
-      word-break: keep-all;
     }
 
     details {
@@ -417,6 +499,510 @@
     .signal span:nth-child(3) { height: 10px; }
     .signal span:nth-child(4) { height: 14px; }
 
+    /* ── 툴 공용 조각 ────────────────────────────────────── */
+    .tool-topline {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .tool-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 13px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      color: #cfdcf0;
+      background: rgba(255, 255, 255, 0.05);
+      font-size: 12px;
+      font-weight: 700;
+      text-decoration: none;
+      transition: border-color 160ms ease, background 160ms ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .tool-link:hover {
+      border-color: rgba(97, 217, 255, 0.5);
+      background: rgba(255, 255, 255, 0.09);
+    }
+
+    .tool-note {
+      margin: 14px 2px 0;
+      color: #7f90a9;
+      font-size: 12px;
+      line-height: 1.6;
+    }
+
+    .tool-note.error {
+      color: #ff9d9d;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 30px;
+    }
+
+    .stat {
+      min-height: 78px;
+      padding: 14px 15px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(5, 15, 31, 0.62);
+    }
+
+    .stat span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+    }
+
+    .stat b {
+      display: block;
+      margin-top: 9px;
+      color: #fff;
+      font-size: 21px;
+      font-weight: 700;
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+    }
+
+    .stat.gold b {
+      color: var(--gold);
+    }
+
+    .stat.small b {
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .rank-nick {
+      display: block;
+      overflow: hidden;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 700;
+      text-decoration: none;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    a.rank-nick:hover {
+      color: var(--cyan);
+    }
+
+    .rank-medal {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 34px;
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      border-radius: 10px;
+      color: #dfe9f7;
+      background: rgba(255, 255, 255, 0.05);
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .rank-1 .rank-medal {
+      color: #2a1f05;
+      border-color: transparent;
+      background: linear-gradient(150deg, #ffe6a8, var(--gold));
+      box-shadow: 0 6px 16px rgba(245, 185, 78, 0.26);
+    }
+
+    .rank-2 .rank-medal {
+      color: #1e2733;
+      border-color: transparent;
+      background: linear-gradient(150deg, #f3f7fc, #c3d0e0);
+    }
+
+    .rank-3 .rank-medal {
+      color: #2f1d0d;
+      border-color: transparent;
+      background: linear-gradient(150deg, #f4c692, #d18a4c);
+    }
+
+    /* ── 툴: 미네랄 기부 랭킹 ────────────────────────────── */
+    .dona-board {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+      align-items: start;
+    }
+
+    .dona-col {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(3, 11, 24, 0.66);
+    }
+
+    .dona-col-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 44px;
+      padding: 0 15px;
+      border-bottom: 1px solid var(--line);
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+    }
+
+    .dona-col-title span {
+      color: var(--cyan);
+      font-size: 11px;
+      letter-spacing: 0.12em;
+    }
+
+    .dona-row {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) auto;
+      gap: 11px;
+      align-items: center;
+      padding: 9px 13px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+      transition: background 160ms ease;
+    }
+
+    .dona-row:last-child {
+      border-bottom: 0;
+    }
+
+    .dona-row:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .dona-who {
+      min-width: 0;
+    }
+
+    .dona-sub {
+      display: block;
+      overflow: hidden;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 11px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .dona-amount {
+      color: var(--gold);
+      font-size: 14px;
+      font-weight: 700;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .dona-empty {
+      padding: 26px 18px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    .dona-empty.error {
+      color: #ff9d9d;
+    }
+
+    /* ── 툴: 스타대학 월간 랭킹 ──────────────────────────── */
+    .mz-bar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 26px;
+      padding: 12px 14px;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(5, 15, 31, 0.62);
+      color: #c4d0e1;
+      font-size: 13px;
+    }
+
+    .mz-select {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 38px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.05);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+    }
+
+    .mz-select select {
+      border: 0;
+      outline: none;
+      color: var(--paper);
+      background: transparent;
+      font: inherit;
+      font-size: 13px;
+      letter-spacing: 0;
+      cursor: pointer;
+    }
+
+    .mz-select select option {
+      color: var(--paper);
+      background: var(--navy-soft);
+    }
+
+    .mz-badge {
+      display: inline-flex;
+      align-items: center;
+      height: 26px;
+      padding: 0 11px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .mz-badge.done {
+      color: var(--success);
+      border-color: rgba(75, 225, 160, 0.4);
+      background: rgba(75, 225, 160, 0.1);
+    }
+
+    .mz-badge.partial {
+      color: var(--blue-bright);
+      border-color: rgba(77, 145, 255, 0.4);
+      background: rgba(77, 145, 255, 0.1);
+    }
+
+    .mz-badge.warn {
+      color: var(--gold);
+      border-color: rgba(245, 185, 78, 0.4);
+      background: rgba(245, 185, 78, 0.1);
+    }
+
+    .mz-progress {
+      flex: 1;
+      min-width: 120px;
+      max-width: 260px;
+      height: 7px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .mz-progress i {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--blue), var(--cyan));
+      transition: width 300ms ease;
+    }
+
+    .mz-updated {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .mz-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 14px;
+      align-items: start;
+    }
+
+    .mz-card {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-top: 3px solid var(--accent, var(--blue));
+      border-radius: 16px;
+      background: rgba(3, 11, 24, 0.66);
+    }
+
+    .mz-card-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 15px 16px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(90deg, rgba(255, 255, 255, 0.04), transparent);
+    }
+
+    .mz-ic {
+      display: grid;
+      flex: 0 0 36px;
+      width: 36px;
+      height: 36px;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: color-mix(in srgb, var(--accent) 14%, transparent);
+      font-size: 18px;
+    }
+
+    .mz-card-head .t {
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .mz-card-head .u {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 11.5px;
+    }
+
+    .mz-list {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      margin: 0;
+      padding: 8px;
+      list-style: none;
+    }
+
+    .mz-row {
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) auto;
+      gap: 11px;
+      align-items: center;
+      padding: 8px 9px;
+      border-radius: 12px;
+      transition: background 160ms ease;
+    }
+
+    .mz-row:hover {
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .mz-who {
+      min-width: 0;
+    }
+
+    .mz-no {
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .mz-val {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 5px;
+      min-width: 62px;
+    }
+
+    .mz-val b {
+      color: #fff;
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .mz-bar-mini {
+      width: 70px;
+      height: 5px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .mz-bar-mini i {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: var(--accent);
+    }
+
+    .mz-more {
+      width: calc(100% - 16px);
+      height: 36px;
+      margin: 0 8px 10px;
+      border: 1px dashed var(--line);
+      border-radius: 11px;
+      color: #c4d0e1;
+      background: transparent;
+      font: inherit;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: border-color 160ms ease, background 160ms ease;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .mz-more:hover {
+      border-color: rgba(97, 217, 255, 0.45);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .mz-empty {
+      padding: 26px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: center;
+    }
+
+    /* ── 툴: 글·댓글 정리 ────────────────────────────────── */
+    .warn {
+      display: flex;
+      gap: 13px;
+      margin-top: 28px;
+      padding: 16px 18px;
+      border: 1px solid rgba(255, 122, 112, 0.42);
+      border-radius: 16px;
+      background: rgba(255, 122, 112, 0.08);
+    }
+
+    .warn-mark {
+      flex: 0 0 auto;
+      color: var(--rose);
+      font-size: 18px;
+      line-height: 1.3;
+    }
+
+    .warn p {
+      margin: 0;
+      color: #ffd6d2;
+      font-size: 13.5px;
+      line-height: 1.7;
+    }
+
+    .warn p + p {
+      margin-top: 7px;
+      color: #e8b8b4;
+      font-size: 12.5px;
+    }
+
+    .action-danger {
+      background: #e2483c;
+      box-shadow: 0 16px 38px rgba(226, 72, 60, 0.26);
+    }
+
+    .action-danger:hover {
+      box-shadow: 0 20px 46px rgba(226, 72, 60, 0.4);
+    }
+
+    .action-danger.copied {
+      color: var(--ink);
+      background: var(--success);
+      box-shadow: 0 18px 42px rgba(75, 225, 160, 0.28);
+    }
+
     @keyframes rise {
       from {
         opacity: 0;
@@ -425,6 +1011,17 @@
       to {
         opacity: 1;
         transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes fade {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
       }
     }
 
@@ -444,6 +1041,16 @@
       50% { transform: translate3d(-14px, 18px, 0); }
     }
 
+    @media (max-width: 980px) {
+      .stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .mz-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     @media (max-width: 620px) {
       .shell {
         align-items: start;
@@ -456,6 +1063,15 @@
 
       .masthead {
         padding: 18px;
+      }
+
+      .tabs {
+        padding: 8px 10px 0;
+      }
+
+      .tab {
+        padding: 11px 13px 12px;
+        font-size: 13px;
       }
 
       .content {
@@ -477,6 +1093,58 @@
       .footer {
         padding: 16px 18px;
       }
+
+      .dona-board {
+        gap: 8px;
+      }
+
+      .dona-col-title {
+        min-height: 38px;
+        padding: 0 10px;
+        font-size: 12px;
+      }
+
+      .dona-col-title span {
+        display: none;
+      }
+
+      .dona-row {
+        grid-template-columns: 28px minmax(0, 1fr);
+        gap: 7px;
+        padding: 7px 8px;
+      }
+
+      .dona-row .rank-medal {
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        font-size: 11px;
+      }
+
+      .dona-row .rank-nick {
+        font-size: 12px;
+      }
+
+      .dona-sub {
+        font-size: 9.5px;
+      }
+
+      .dona-amount {
+        grid-column: 2;
+        margin-top: -2px;
+        font-size: 11.5px;
+        text-align: left;
+      }
+
+      .mz-updated {
+        margin-left: 0;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .stat-grid {
+        grid-template-columns: 1fr;
+      }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -495,79 +1163,339 @@
   <main class="shell">
     <div class="orbit" aria-hidden="true"></div>
 
-    <section class="panel" aria-labelledby="page-title">
+    <section class="panel">
       <header class="masthead">
         <div class="brand">
           <span class="live-dot" aria-hidden="true"></span>
-          SOOP RECAP
+          YGOSU TOOLS
         </div>
-        <span class="version">WATCH DATA / 01</span>
+        <span class="version">TOOLBOX / 05</span>
       </header>
 
-      <div class="content">
-        <p class="kicker">YOUR WATCH HISTORY, RECAPTURED</p>
-        <h1 id="page-title">시청 기록을<br>한 번에.</h1>
-        <p class="intro">
-          SOOP 시청 통계 페이지를 열고 주소창 실행용 리캡 코드를 복사하세요.
-          복잡한 설치 없이 두 번의 터치면 준비 끝.
-        </p>
+      <!-- 탭 버튼은 아래 .tool-panel[data-tool][data-label] 로부터 자동 생성됨 -->
+      <nav class="tabs" id="tab-bar" role="tablist" aria-label="툴 목록"></nav>
 
-        <div class="actions">
-          <a
-            class="action action-secondary"
-            id="soop-link"
-            href="https://m.sooplive.com/statistics/a/watch/?szModule=UserLiveWatchTimeData&amp;szMethod=watch"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <span class="action-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <path d="M14 5h5v5"></path>
-                <path d="M10 14 19 5"></path>
-                <path d="M19 13v6H5V5h6"></path>
-              </svg>
-            </span>
-            <span class="action-label">숲바로가기</span>
-          </a>
+      <div id="tool-panels">
 
-          <button class="action action-primary" id="copy-button" type="button">
-            <span class="action-icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24">
-                <rect x="8" y="8" width="11" height="11" rx="2"></rect>
-                <path d="M16 8V5H5v11h3"></path>
-              </svg>
-            </span>
-            <span class="action-label" id="copy-label">숲리캡복사하기</span>
-          </button>
-        </div>
+        <!-- ══════════ TOOL: 숲 리캡 ══════════ -->
+        <section class="tool-panel" data-tool="recap" data-label="숲 리캡" role="tabpanel" tabindex="0">
+          <div class="content">
+            <p class="kicker">YOUR WATCH HISTORY, RECAPTURED</p>
+            <h1>시청 기록을<br>한 번에.</h1>
+            <p class="intro">
+              SOOP 시청 통계 페이지를 열고 주소창 실행용 리캡 코드를 복사하세요.
+              복잡한 설치 없이 두 번의 터치면 준비 끝.
+            </p>
 
-        <p class="status" id="copy-status" aria-live="polite">
-          복사 후 주소창에 <strong>javascript:</strong>를 직접 입력하고 이어 붙이세요.
-        </p>
+            <div class="actions">
+              <a
+                class="action action-secondary"
+                id="soop-link"
+                href="https://m.sooplive.com/statistics/a/watch/?szModule=UserLiveWatchTimeData&amp;szMethod=watch"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <span class="action-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M14 5h5v5"></path>
+                    <path d="M10 14 19 5"></path>
+                    <path d="M19 13v6H5V5h6"></path>
+                  </svg>
+                </span>
+                <span class="action-label">숲바로가기</span>
+              </a>
 
-        <div class="guide" aria-label="사용 순서">
-          <div class="step">
-            <span class="step-number">STEP 01</span>
-            <p>숲바로가기로 시청 통계 페이지를 엽니다.</p>
+              <button class="action action-primary" id="copy-button" type="button">
+                <span class="action-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <rect x="8" y="8" width="11" height="11" rx="2"></rect>
+                    <path d="M16 8V5H5v11h3"></path>
+                  </svg>
+                </span>
+                <span class="action-label" id="copy-label">숲리캡복사하기</span>
+              </button>
+            </div>
+
+            <p class="status" id="copy-status" aria-live="polite">
+              복사 후 주소창에 <strong>javascript:</strong>를 직접 입력하고 이어 붙이세요.
+            </p>
+
+            <div class="guide" aria-label="사용 순서">
+              <div class="step">
+                <span class="step-number">STEP 01</span>
+                <p>숲바로가기로 시청 통계 페이지를 엽니다.</p>
+              </div>
+              <div class="step">
+                <span class="step-number">STEP 02</span>
+                <p>숲리캡복사하기를 눌러 접두어 없는 코드를 복사합니다.</p>
+              </div>
+              <div class="step">
+                <span class="step-number">STEP 03</span>
+                <p>통계 페이지 주소창에 <strong>javascript:</strong>를 직접 입력하고 바로 뒤에 코드를 붙여넣어 실행합니다.</p>
+              </div>
+            </div>
+
+            <details id="manual-copy">
+              <summary>복사되는 코드 직접 보기 (javascript: 제외)</summary>
+              <pre class="code" id="code-preview" tabindex="0"></pre>
+            </details>
           </div>
-          <div class="step">
-            <span class="step-number">STEP 02</span>
-            <p>숲리캡복사하기를 눌러 접두어 없는 코드를 복사합니다.</p>
-          </div>
-          <div class="step">
-            <span class="step-number">STEP 03</span>
-            <p>통계 페이지 주소창에 <strong>javascript:</strong>를 직접 입력하고 바로 뒤에 코드를 붙여넣어 실행합니다.</p>
-          </div>
-        </div>
+        </section>
+        <!-- ══════════ /TOOL: 숲 리캡 ══════════ -->
+        <!-- ══════════ TOOL: 글·댓글 정리 ══════════ -->
+        <section class="tool-panel" data-tool="cleaner" data-label="글·댓글 정리" role="tabpanel" tabindex="0">
+          <div class="content">
+            <div class="tool-topline">
+              <p class="kicker" style="margin:0">BULK CLEANUP</p>
+              <a class="tool-link" id="cleaner-mylist" href="https://ygosu.com/minilog/" target="_blank" rel="noopener noreferrer">내 미니로그 ↗</a>
+            </div>
+            <h1>내 글·댓글<br>일괄 정리.</h1>
+            <p class="intro">
+              와이고수에 쓴 내 글과 댓글을 한 화면에 모아 보고, 체크한 것만 한 번에 지웁니다.
+              와이고수 자체 일괄삭제 기능을 그대로 쓰며 내 계정 것만 지울 수 있습니다.
+            </p>
 
-        <details id="manual-copy">
-          <summary>복사되는 코드 직접 보기 (javascript: 제외)</summary>
-          <pre class="code" id="code-preview" tabindex="0"></pre>
-        </details>
+            <div class="warn">
+              <span class="warn-mark" aria-hidden="true">⚠</span>
+              <div>
+                <p><strong>삭제는 되돌릴 수 없습니다.</strong> 반드시 목록을 먼저 불러오고, 지울 항목만 체크하세요. 실행 전 개수를 직접 입력해 확인하는 단계가 있습니다.</p>
+                <p>처음 쓸 때는 1~2개만 골라 실제로 지워지는지 확인한 뒤 늘리세요.</p>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button class="action action-primary" id="cleaner-loader" type="button">
+                <span class="action-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <rect x="8" y="8" width="11" height="11" rx="2"></rect>
+                    <path d="M16 8V5H5v11h3"></path>
+                  </svg>
+                </span>
+                <span class="action-label" id="cleaner-loader-label">로더 복사 (짧음)</span>
+              </button>
+
+              <button class="action action-danger" id="cleaner-full" type="button">
+                <span class="action-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M4 7h16"></path>
+                    <path d="M10 11v6M14 11v6"></path>
+                    <path d="M6 7l1 12h10l1-12"></path>
+                    <path d="M9 7V4h6v3"></path>
+                  </svg>
+                </span>
+                <span class="action-label" id="cleaner-full-label">전체 코드 복사</span>
+              </button>
+            </div>
+
+            <p class="status" id="cleaner-status" aria-live="polite">
+              복사 후 주소창에 <strong>javascript:</strong>를 직접 입력하고 이어 붙이세요.
+            </p>
+
+            <div class="guide" aria-label="사용 순서">
+              <div class="step">
+                <span class="step-number">STEP 01</span>
+                <p>와이고수에 <strong>로그인</strong>한 상태로 아무 페이지나 엽니다.</p>
+              </div>
+              <div class="step">
+                <span class="step-number">STEP 02</span>
+                <p>위 버튼으로 코드를 복사하고, 주소창에 <strong>javascript:</strong>를 직접 입력한 뒤 바로 붙여넣어 실행합니다.</p>
+              </div>
+              <div class="step">
+                <span class="step-number">STEP 03</span>
+                <p>뜬 창에서 <strong>내 댓글 / 내 글</strong>을 고르고 목록을 불러온 뒤, 지울 항목만 체크해 삭제합니다.</p>
+              </div>
+            </div>
+
+            <p class="tool-note">
+              로더는 짧지만 GitHub Pages·jsDelivr에 배포된 뒤에만 동작합니다. 배포 전에는 전체 코드 쪽을 쓰세요.
+              F12 개발자도구 콘솔에 붙여넣어 실행해도 됩니다(콘솔이 붙여넣기를 막으면 <strong>allow pasting</strong> 입력 후 재시도).
+            </p>
+
+            <details id="cleaner-manual">
+              <summary>복사되는 코드 직접 보기 (javascript: 제외)</summary>
+              <pre class="code" id="cleaner-preview" tabindex="0">불러오는 중…</pre>
+            </details>
+          </div>
+        </section>
+        <!-- ══════════ /TOOL: 글·댓글 정리 ══════════ -->
+        <!-- ══════════ TOOL: 회원 글 찾기 ══════════ -->
+        <section class="tool-panel" data-tool="finder" data-label="회원 글 찾기" role="tabpanel" tabindex="0">
+          <div class="content">
+            <div class="tool-topline">
+              <p class="kicker" style="margin:0">MEMBER POST FINDER</p>
+              <a class="tool-link" href="https://ygosu.com/" target="_blank" rel="noopener noreferrer">와이고수 열기 ↗</a>
+            </div>
+            <h1>이 사람<br>어디에 썼나.</h1>
+            <p class="intro">
+              회원번호를 넣으면 그 사람이 쓴 글을 전부 모아 게시판별로 묶어 보여줍니다.
+              제목을 누르면 해당 글이 새 탭에서 열립니다. 읽기 전용이라 로그인도 필요 없습니다.
+            </p>
+
+            <div class="stat-grid" aria-label="기능 요약">
+              <div class="stat small">
+                <span>입력</span>
+                <b>회원번호<br>또는 미니로그 주소</b>
+              </div>
+              <div class="stat small">
+                <span>묶음</span>
+                <b>게시판별 그룹<br>+ 개수 칩 필터</b>
+              </div>
+              <div class="stat small">
+                <span>검색</span>
+                <b>제목 실시간<br>필터</b>
+              </div>
+              <div class="stat small">
+                <span>수집량</span>
+                <b>페이지당 30개<br>최대 200페이지</b>
+              </div>
+            </div>
+
+            <div class="actions">
+              <button class="action action-primary" id="finder-loader" type="button">
+                <span class="action-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <rect x="8" y="8" width="11" height="11" rx="2"></rect>
+                    <path d="M16 8V5H5v11h3"></path>
+                  </svg>
+                </span>
+                <span class="action-label" id="finder-loader-label">로더 복사 (짧음)</span>
+              </button>
+
+              <button class="action action-secondary" id="finder-full" type="button">
+                <span class="action-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="6"></circle>
+                    <path d="M20 20l-4.5-4.5"></path>
+                  </svg>
+                </span>
+                <span class="action-label" id="finder-full-label">전체 코드 복사</span>
+              </button>
+            </div>
+
+            <p class="status" id="finder-status" aria-live="polite">
+              복사 후 주소창에 <strong>javascript:</strong>를 직접 입력하고 이어 붙이세요.
+            </p>
+
+            <div class="guide" aria-label="사용 순서">
+              <div class="step">
+                <span class="step-number">STEP 01</span>
+                <p>와이고수 아무 페이지나 엽니다. 로그인은 안 해도 됩니다.</p>
+              </div>
+              <div class="step">
+                <span class="step-number">STEP 02</span>
+                <p>위 버튼으로 코드를 복사하고, 주소창에 <strong>javascript:</strong>를 입력한 뒤 바로 붙여넣어 실행합니다.</p>
+              </div>
+              <div class="step">
+                <span class="step-number">STEP 03</span>
+                <p>회원번호를 넣고 조회하면 게시판별 목록이 뜹니다. 칩으로 게시판을 고르고 제목을 눌러 이동합니다.</p>
+              </div>
+            </div>
+
+            <p class="tool-note">
+              와이고수가 CORS 헤더를 주지 않아 이 페이지에서 직접 조회할 수 없습니다. 그래서 와이고수 안에서 실행하는 방식입니다.
+              F12 콘솔에 붙여넣어도 됩니다(콘솔이 막으면 <strong>allow pasting</strong> 입력 후 재시도).
+            </p>
+
+            <details id="finder-manual">
+              <summary>복사되는 코드 직접 보기 (javascript: 제외)</summary>
+              <pre class="code" id="finder-preview" tabindex="0">불러오는 중…</pre>
+            </details>
+          </div>
+        </section>
+        <!-- ══════════ /TOOL: 회원 글 찾기 ══════════ -->
+        <!-- ══════════ TOOL: 스타대학 월간 활동 랭킹 ══════════ -->
+        <section class="tool-panel" data-tool="monstarz" data-label="스타대학 랭킹" data-wide role="tabpanel" tabindex="0">
+          <div class="content">
+            <div class="tool-topline">
+              <p class="kicker" style="margin:0">MONTHLY ACTIVITY RANKING</p>
+              <a class="tool-link" id="mz-source" href="https://ygosu.com/board/pan_monstarz" target="_blank" rel="noopener noreferrer">스타대학 게시판 ↗</a>
+            </div>
+            <h1>이번 달<br>누가 제일.</h1>
+            <p class="intro">
+              스타대학(pan_monstarz) 게시판의 월간 활동 집계.
+              글 · 추천받음 · 댓글 · 추천누름 네 부문 TOP 랭킹.
+            </p>
+
+            <div class="mz-bar">
+              <label class="mz-select">
+                <span>MONTH</span>
+                <select id="mz-month"><option>불러오는 중…</option></select>
+              </label>
+              <span id="mz-count">집계 대기 중</span>
+              <span id="mz-badge" class="mz-badge" hidden></span>
+              <div class="mz-progress" id="mz-progress" hidden><i id="mz-progress-bar" style="width:0%"></i></div>
+              <span class="mz-updated" id="mz-updated"></span>
+            </div>
+
+            <div class="mz-grid" id="mz-grid"></div>
+
+            <p class="tool-note" id="mz-note"></p>
+          </div>
+        </section>
+        <!-- ══════════ /TOOL: 스타대학 월간 활동 랭킹 ══════════ -->
+        <!-- ══════════ TOOL: 미네랄 기부 랭킹 ══════════ -->
+        <section class="tool-panel" data-tool="dona" data-label="미네랄 기부" data-wide role="tabpanel" tabindex="0">
+          <div class="content">
+            <div class="tool-topline">
+              <p class="kicker" style="margin:0">MINERAL DONATION RANKING</p>
+              <a class="tool-link" href="https://ygosu.com/board/pan_monstarz/?mode=mineral_storage" target="_blank" rel="noopener noreferrer">원본 창고 보기 ↗</a>
+            </div>
+            <h1>미네랄 기부<br>TOP 100.</h1>
+            <p class="intro">
+              스타대학 미네랄 창고 기부 내역을 회원번호 기준으로 누적한 랭킹.
+              수집은 하루 한 번 자동으로 갱신됩니다.
+            </p>
+
+            <div class="stat-grid" aria-label="미네랄 기부 요약">
+              <div class="stat gold">
+                <span>누적 기부 미네랄</span>
+                <b id="dona-total">-</b>
+              </div>
+              <div class="stat">
+                <span>기부 회원</span>
+                <b id="dona-donors">-</b>
+              </div>
+              <div class="stat">
+                <span>현재 창고</span>
+                <b id="dona-storage">-</b>
+              </div>
+              <div class="stat small">
+                <span>마지막 갱신</span>
+                <b id="dona-updated">불러오는 중</b>
+              </div>
+            </div>
+
+            <div class="dona-board" aria-label="기부 랭킹 100위">
+              <section class="dona-col" aria-label="1위부터 50위">
+                <div class="dona-col-title">1위 – 50위 <span>상위권</span></div>
+                <div id="dona-left" class="dona-empty">랭킹 데이터를 불러오는 중입니다.</div>
+              </section>
+              <section class="dona-col" aria-label="51위부터 100위">
+                <div class="dona-col-title">51위 – 100위 <span>추격권</span></div>
+                <div id="dona-right" class="dona-empty">랭킹 데이터를 불러오는 중입니다.</div>
+              </section>
+            </div>
+
+            <p class="tool-note" id="dona-scan">수집 상태 확인 중</p>
+          </div>
+        </section>
+        <!-- ══════════ /TOOL: 미네랄 기부 랭킹 ══════════ -->
+
+        <!--
+          새 툴 추가 방법:
+          1) 아래 형태로 <section> 하나 복사해서 붙여넣기
+             <section class="tool-panel" data-tool="아이디" data-label="탭이름" role="tabpanel" tabindex="0">
+               <div class="content"> ... </div>
+             </section>
+             (표/랭킹처럼 넓은 화면이 필요하면 data-wide 속성 추가)
+          2) 스크립트 하단 TOOLS 객체에 `아이디: function () { ... }` 초기화 함수 등록
+             (해당 탭이 처음 열릴 때 1회 실행됨. 초기화 필요 없으면 등록 안 해도 됨)
+        -->
+
       </div>
 
       <footer class="footer">
-        <span>SOOP RECAP LAUNCHER</span>
+        <span>YGOSU TOOLS</span>
         <span class="signal" aria-label="연결됨">
           <span></span><span></span><span></span><span></span>
         </span>
@@ -578,84 +1506,585 @@
   <textarea id="copy-fallback" aria-hidden="true" tabindex="-1" readonly style="position:fixed;left:0;top:0;width:1px;height:1px;padding:0;border:0;opacity:0.01;pointer-events:none;font-size:16px;"></textarea>
 
   <script>
-    const SOOP_URL = "https://m.sooplive.com/statistics/a/watch/?szModule=UserLiveWatchTimeData&szMethod=watch";
-    const CHROME_INTENT_URL = "intent://m.sooplive.com/statistics/a/watch/?szModule=UserLiveWatchTimeData&szMethod=watch#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=" + encodeURIComponent(SOOP_URL) + ";end";
-    const RECAP_CODE = "!function(){var s=document.createElement('script');s.id='soop-recap-loader';s.src='https://cdn.jsdelivr.net/gh/ygtqqq/soop_recap@main/recap.js';document.head.appendChild(s)}();";
-    const soopLink = document.getElementById("soop-link");
-    const copyButton = document.getElementById("copy-button");
-    const copyLabel = document.getElementById("copy-label");
-    const copyStatus = document.getElementById("copy-status");
-    const codePreview = document.getElementById("code-preview");
-    const fallbackField = document.getElementById("copy-fallback");
-    const manualCopy = document.getElementById("manual-copy");
-    let resetTimer;
+    /* ─────────────────────────────────────────────────────
+       공용 유틸
+       ───────────────────────────────────────────────────── */
+    const $ = (id) => document.getElementById(id);
+    const fmtNum = (value) => (value == null ? "—" : Number(value).toLocaleString("ko-KR"));
+    const escapeHtml = (value) =>
+      String(value ?? "").replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      }[c]));
 
-    codePreview.textContent = RECAP_CODE;
+    const rankClass = (rank) => (rank <= 3 ? " rank-" + rank : "");
 
-    if (/Android/i.test(navigator.userAgent)) {
-      soopLink.href = CHROME_INTENT_URL;
-      soopLink.target = "_top";
-      soopLink.setAttribute("aria-label", "Chrome로 숲바로가기");
-    }
-
-    function copyWithSelection() {
-      fallbackField.value = RECAP_CODE;
-      fallbackField.removeAttribute("aria-hidden");
-      fallbackField.focus();
-      fallbackField.select();
-      fallbackField.setSelectionRange(0, RECAP_CODE.length);
-
-      const copied = document.execCommand("copy");
-
-      fallbackField.blur();
-      fallbackField.setAttribute("aria-hidden", "true");
-      return copied;
-    }
-
-    async function copyRecapCode() {
-      let copied = false;
-
+    /** 클립보드 복사. execCommand 폴백 포함. 성공 여부를 돌려준다. */
+    async function copyText(text) {
       if (navigator.clipboard && window.isSecureContext) {
         try {
-          await navigator.clipboard.writeText(RECAP_CODE);
-          copied = true;
+          await navigator.clipboard.writeText(text);
+          return true;
         } catch {
-          copied = false;
+          /* 폴백으로 진행 */
         }
       }
 
-      if (!copied) {
-        try {
-          copied = copyWithSelection();
-        } catch {
-          copied = false;
-        }
-      }
-
-      window.clearTimeout(resetTimer);
-      copyStatus.classList.remove("success", "error");
-
-      if (copied) {
-        copyButton.classList.add("copied");
-        copyLabel.textContent = "복사 완료";
-        copyStatus.innerHTML = "복사 완료. 주소창에 <strong>javascript:</strong>를 직접 입력하고 바로 뒤에 붙여넣으세요.";
-        copyStatus.classList.add("success");
-
-        resetTimer = window.setTimeout(() => {
-          copyButton.classList.remove("copied");
-          copyLabel.textContent = "숲리캡복사하기";
-          copyStatus.innerHTML = "복사 후 주소창에 <strong>javascript:</strong>를 직접 입력하고 이어 붙이세요.";
-          copyStatus.classList.remove("success");
-        }, 3200);
-      } else {
-        copyLabel.textContent = "다시 시도";
-        copyStatus.textContent = "복사가 차단됐습니다. 아래 코드를 길게 눌러 직접 복사하세요.";
-        copyStatus.classList.add("error");
-        manualCopy.open = true;
+      const field = $("copy-fallback");
+      try {
+        field.value = text;
+        field.removeAttribute("aria-hidden");
+        field.focus();
+        field.select();
+        field.setSelectionRange(0, text.length);
+        const copied = document.execCommand("copy");
+        field.blur();
+        field.setAttribute("aria-hidden", "true");
+        return copied;
+      } catch {
+        field.setAttribute("aria-hidden", "true");
+        return false;
       }
     }
 
-    copyButton.addEventListener("click", copyRecapCode);
+    /* 탭 초기화 함수 등록소. key = data-tool 값. 첫 진입 시 1회 실행. */
+    const TOOLS = {};
+
+    /* ══════════ TOOL: recap (숲 리캡) ══════════ */
+    TOOLS.recap = function () {
+      const SOOP_URL = "https://m.sooplive.com/statistics/a/watch/?szModule=UserLiveWatchTimeData&szMethod=watch";
+      const CHROME_INTENT_URL = "intent://m.sooplive.com/statistics/a/watch/?szModule=UserLiveWatchTimeData&szMethod=watch#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=" + encodeURIComponent(SOOP_URL) + ";end";
+      const RECAP_CODE = "!function(){var s=document.createElement('script');s.id='soop-recap-loader';s.src='https://cdn.jsdelivr.net/gh/ygtqqq/soop_recap@main/recap.js';document.head.appendChild(s)}();";
+      const soopLink = $("soop-link");
+      const copyButton = $("copy-button");
+      const copyLabel = $("copy-label");
+      const copyStatus = $("copy-status");
+      const codePreview = $("code-preview");
+      const fallbackField = $("copy-fallback");
+      const manualCopy = $("manual-copy");
+      let resetTimer;
+
+      codePreview.textContent = RECAP_CODE;
+
+      if (/Android/i.test(navigator.userAgent)) {
+        soopLink.href = CHROME_INTENT_URL;
+        soopLink.target = "_top";
+        soopLink.setAttribute("aria-label", "Chrome로 숲바로가기");
+      }
+
+      function copyWithSelection() {
+        fallbackField.value = RECAP_CODE;
+        fallbackField.removeAttribute("aria-hidden");
+        fallbackField.focus();
+        fallbackField.select();
+        fallbackField.setSelectionRange(0, RECAP_CODE.length);
+
+        const copied = document.execCommand("copy");
+
+        fallbackField.blur();
+        fallbackField.setAttribute("aria-hidden", "true");
+        return copied;
+      }
+
+      async function copyRecapCode() {
+        let copied = false;
+
+        if (navigator.clipboard && window.isSecureContext) {
+          try {
+            await navigator.clipboard.writeText(RECAP_CODE);
+            copied = true;
+          } catch {
+            copied = false;
+          }
+        }
+
+        if (!copied) {
+          try {
+            copied = copyWithSelection();
+          } catch {
+            copied = false;
+          }
+        }
+
+        window.clearTimeout(resetTimer);
+        copyStatus.classList.remove("success", "error");
+
+        if (copied) {
+          copyButton.classList.add("copied");
+          copyLabel.textContent = "복사 완료";
+          copyStatus.innerHTML = "복사 완료. 주소창에 <strong>javascript:</strong>를 직접 입력하고 바로 뒤에 붙여넣으세요.";
+          copyStatus.classList.add("success");
+
+          resetTimer = window.setTimeout(() => {
+            copyButton.classList.remove("copied");
+            copyLabel.textContent = "숲리캡복사하기";
+            copyStatus.innerHTML = "복사 후 주소창에 <strong>javascript:</strong>를 직접 입력하고 이어 붙이세요.";
+            copyStatus.classList.remove("success");
+          }, 3200);
+        } else {
+          copyLabel.textContent = "다시 시도";
+          copyStatus.textContent = "복사가 차단됐습니다. 아래 코드를 길게 눌러 직접 복사하세요.";
+          copyStatus.classList.add("error");
+          manualCopy.open = true;
+        }
+      }
+
+      copyButton.addEventListener("click", copyRecapCode);
+    };
+    /* ══════════ /TOOL: recap ══════════ */
+
+
+    /* ══════════ TOOL: dona (미네랄 기부 랭킹) ══════════ */
+    TOOLS.dona = function () {
+      // 원본 저장소: github.com/kill662477-cmyk/dona
+      const DATA_URL = "https://raw.githubusercontent.com/kill662477-cmyk/dona/main/data/mineral-donations.json";
+      const MINILOG = (no) => "https://ygosu.com/community/minilog/" + encodeURIComponent(no);
+
+      const formatDate = (iso) => {
+        if (!iso) return "-";
+        const date = new Date(iso);
+        if (Number.isNaN(date.getTime())) return "-";
+        return date.toLocaleString("ko-KR", {
+          timeZone: "Asia/Seoul",
+          year: "2-digit",
+          month: "2-digit",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      };
+
+      function renderColumn(targetId, rows) {
+        const target = $(targetId);
+        if (!target) return;
+
+        if (!rows.length) {
+          target.className = "dona-empty";
+          target.textContent = "아직 표시할 기부 내역이 없습니다.";
+          return;
+        }
+
+        target.className = "";
+        target.innerHTML = rows
+          .map((row) => {
+            const nick = escapeHtml(row.nickname);
+            const who = row.memberId
+              ? `<a class="rank-nick" href="${MINILOG(row.memberId)}" target="_blank" rel="noopener noreferrer" title="${nick}">${nick}</a>`
+              : `<span class="rank-nick" title="${nick}">${nick}</span>`;
+
+            return `
+              <article class="dona-row${rankClass(row.rank)}">
+                <div class="rank-medal">${row.rank}</div>
+                <div class="dona-who">
+                  ${who}
+                  <span class="dona-sub">#${escapeHtml(row.memberId)} · ${escapeHtml(row.latestReason || "최근 사유 없음")}</span>
+                </div>
+                <div class="dona-amount">${fmtNum(row.totalMineral)}</div>
+              </article>`;
+          })
+          .join("");
+      }
+
+      async function load() {
+        try {
+          const response = await fetch(DATA_URL + "?v=" + Date.now(), { cache: "no-store" });
+          if (!response.ok) throw new Error("HTTP " + response.status);
+
+          const data = await response.json();
+          const ranking = Array.isArray(data.ranking) ? data.ranking : [];
+
+          $("dona-total").textContent = fmtNum(data.summary?.totalDonatedMineral);
+          $("dona-donors").textContent = fmtNum(data.summary?.donorCount);
+          $("dona-storage").textContent = data.currentStorage?.text || "-";
+          $("dona-updated").textContent = formatDate(data.collectedAt);
+          $("dona-scan").className = "tool-note";
+          $("dona-scan").textContent =
+            `${fmtNum(data.scan?.pagesScanned)}페이지 스캔 · 기부 내역 ${fmtNum(data.scan?.donationRows)}건 · 자동 수집은 GitHub Actions에서 하루 한 번 실행됩니다.`;
+
+          renderColumn("dona-left", ranking.slice(0, 50));
+          renderColumn("dona-right", ranking.slice(50, 100));
+        } catch (error) {
+          console.error(error);
+          $("dona-updated").textContent = "-";
+          ["dona-left", "dona-right"].forEach((id) => {
+            $(id).className = "dona-empty error";
+            $(id).textContent = "랭킹 데이터를 불러오지 못했습니다.";
+          });
+          $("dona-scan").className = "tool-note error";
+          $("dona-scan").textContent = "데이터 소스(dona/data/mineral-donations.json) 연결 실패.";
+        }
+      }
+
+      load();
+    };
+    /* ══════════ /TOOL: dona ══════════ */
+
+
+    /* ══════════ TOOL: monstarz (스타대학 월간 활동 랭킹) ══════════ */
+    TOOLS.monstarz = function () {
+      // 원본 저장소: github.com/kill662477-cmyk/monstarz-ranking
+      const BASE = "https://raw.githubusercontent.com/kill662477-cmyk/monstarz-ranking/main/docs/data/";
+      const MINILOG = (no) => (no && no !== "—" ? "https://ygosu.com/community/minilog/" + encodeURIComponent(no) : null);
+
+      const METRICS = [
+        { key: "posts", icon: "✍️", accent: "#4be1a0", title: "글 많이 쓴 사람", desc: "이번달에 작성한 게시글 수" },
+        { key: "recv_good", icon: "👍", accent: "#4d91ff", title: "추천 많이 받은 사람", desc: "이번달 본인 글이 받은 추천 합계" },
+        { key: "comments", icon: "💬", accent: "#f5b94e", title: "댓글 많이 쓴 사람", desc: "이번달 글에 작성한 댓글 수" },
+        { key: "given_good", icon: "❤️", accent: "#ff7a70", title: "추천 많이 누른 사람", desc: "이번달 글에 누른 추천 수" },
+      ];
+
+      const grid = $("mz-grid");
+      const monthSel = $("mz-month");
+      let expanded = {};
+      let current = null;
+
+      function rowHTML(item, max) {
+        const pct = max > 0 ? Math.max(4, Math.round((item.value / max) * 100)) : 0;
+        const nick = escapeHtml(item.nick);
+        const url = MINILOG(item.no);
+        const who = url
+          ? `<a class="rank-nick" href="${url}" target="_blank" rel="noopener noreferrer" title="${nick}">${nick}</a>`
+          : `<span class="rank-nick" title="${nick}">${nick}</span>`;
+
+        return `
+          <li class="mz-row${rankClass(item.rank)}">
+            <div class="rank-medal">${item.rank}</div>
+            <div class="mz-who">
+              ${who}
+              <div class="mz-no">${item.no && item.no !== "—" ? "#" + escapeHtml(item.no) : ""}</div>
+            </div>
+            <div class="mz-val">
+              <b>${fmtNum(item.value)}</b>
+              <div class="mz-bar-mini"><i style="width:${pct}%"></i></div>
+            </div>
+          </li>`;
+      }
+
+      function render(data) {
+        current = data;
+
+        const collection = data.collection || {};
+        const postsTotal = collection.posts_total || 0;
+
+        $("mz-count").textContent = postsTotal
+          ? `${fmtNum(postsTotal)}개 글 · 참여자 ${fmtNum(collection.members_total)}명`
+          : "집계 데이터 없음";
+
+        const badge = $("mz-badge");
+        const progress = $("mz-progress");
+
+        badge.hidden = false;
+        if (collection.complete) {
+          badge.className = "mz-badge done";
+          badge.textContent = "집계 완료";
+          progress.hidden = true;
+        } else {
+          badge.className = "mz-badge partial";
+          badge.textContent = "수집 중 " + (collection.progress_pct || 0) + "%";
+          progress.hidden = false;
+          $("mz-progress-bar").style.width = (collection.progress_pct || 0) + "%";
+        }
+
+        const generated = data.generated_at ? new Date(data.generated_at) : null;
+        $("mz-updated").textContent =
+          generated && !Number.isNaN(generated.getTime())
+            ? "업데이트 " + generated.toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })
+            : "";
+
+        if (data.source) $("mz-source").href = data.source;
+
+        grid.innerHTML = "";
+        METRICS.forEach((metric) => {
+          const list = (data.boards && data.boards[metric.key]) || [];
+          const max = list.length ? Math.max(...list.map((x) => x.value)) : 0;
+          const show = expanded[metric.key] ? list.slice(0, 10) : list.slice(0, 5);
+
+          const card = document.createElement("section");
+          card.className = "mz-card";
+          card.style.setProperty("--accent", metric.accent);
+          card.innerHTML = `
+            <div class="mz-card-head">
+              <div class="mz-ic" aria-hidden="true">${metric.icon}</div>
+              <div>
+                <div class="t">${metric.title}</div>
+                <div class="u">${metric.desc}</div>
+              </div>
+            </div>
+            ${show.length
+              ? `<ul class="mz-list">${show.map((item) => rowHTML(item, max)).join("")}</ul>`
+              : `<div class="mz-empty">아직 집계된 데이터가 없습니다</div>`}
+            ${list.length > 5
+              ? `<button class="mz-more" type="button" data-key="${metric.key}">${expanded[metric.key] ? "접기 ▲" : "TOP 10 더보기 ▼"}</button>`
+              : ""}
+          `;
+          grid.appendChild(card);
+        });
+
+        grid.querySelectorAll(".mz-more").forEach((button) => {
+          button.addEventListener("click", () => {
+            const key = button.dataset.key;
+            expanded[key] = !expanded[key];
+            render(current);
+          });
+        });
+
+        $("mz-note").className = "tool-note";
+        $("mz-note").textContent =
+          "※ 집계 기준: 해당 월에 작성된 게시글 및 그 글에 달린 댓글 · 추천. '추천 많이 누른 사람'은 글 추천인 목록 기준. 닉네임은 집계 시점 기준입니다.";
+      }
+
+      function fail(message) {
+        grid.innerHTML = `<div class="mz-empty">${escapeHtml(message)}</div>`;
+        $("mz-badge").hidden = true;
+        $("mz-progress").hidden = true;
+        $("mz-note").className = "tool-note error";
+        $("mz-note").textContent = "데이터 소스(monstarz-ranking/docs/data) 연결 실패.";
+      }
+
+      async function loadMonth(month) {
+        try {
+          const response = await fetch(BASE + "monstarz_" + month + ".json?v=" + Date.now(), { cache: "no-store" });
+          if (!response.ok) throw new Error("HTTP " + response.status);
+          expanded = {};
+          render(await response.json());
+        } catch (error) {
+          console.error(error);
+          $("mz-count").textContent = "—";
+          $("mz-updated").textContent = "";
+          fail("해당 월 집계 데이터를 불러오지 못했습니다.");
+        }
+      }
+
+      async function init() {
+        let months = [];
+
+        try {
+          const response = await fetch(BASE + "months.json?v=" + Date.now(), { cache: "no-store" });
+          if (response.ok) months = (await response.json()).months || [];
+        } catch (error) {
+          console.error(error);
+        }
+
+        if (!months.length) {
+          monthSel.innerHTML = "<option>—</option>";
+          $("mz-count").textContent = "—";
+          fail("월 목록을 불러오지 못했습니다.");
+          return;
+        }
+
+        monthSel.innerHTML = months
+          .map((m) => `<option value="${escapeHtml(m.month)}">${escapeHtml(m.label || m.month)}</option>`)
+          .join("");
+        monthSel.value = months[0].month;
+        monthSel.addEventListener("change", () => loadMonth(monthSel.value));
+        loadMonth(months[0].month);
+      }
+
+      init();
+    };
+    /* ══════════ /TOOL: monstarz ══════════ */
+
+
+    /* ─────────────────────────────────────────────────────
+       ygosu.com 위에서 실행하는 오버레이 툴 공용 탭 로직.
+       ygosu 는 CORS 헤더를 주지 않아 이 페이지에서 직접 조회·삭제할 수 없다.
+       그래서 스크립트를 복사해 ygosu 안에서 실행시킨다.
+
+       prefix 로 아래 id 들을 찾는다:
+         {prefix}-loader, {prefix}-loader-label,
+         {prefix}-full,   {prefix}-full-label,
+         {prefix}-status, {prefix}-preview, {prefix}-manual
+       ───────────────────────────────────────────────────── */
+    function setupBookmarkletTab(prefix, scriptPath) {
+      const LOADER_IDLE = "로더 복사 (짧음)";
+      const FULL_IDLE = "전체 코드 복사";
+      const CDN_URL = "https://cdn.jsdelivr.net/gh/kill662477-cmyk/soop-recap-launcher@main/" + scriptPath;
+      const LOADER_CODE =
+        "!function(){var s=document.createElement('script');s.src='" + CDN_URL + "?v='+Date.now();document.head.appendChild(s)}();";
+
+      const status = $(prefix + "-status");
+      const preview = $(prefix + "-preview");
+      const manual = $(prefix + "-manual");
+      let fullCode = null;
+      let resetTimer;
+
+      preview.textContent = LOADER_CODE;
+
+      /* 소스 파일을 base64 로 감싸 한 줄짜리 javascript: 페이로드로 만든다.
+         주소창에 붙일 때 줄바꿈이 사라져도 코드가 깨지지 않는다. */
+      async function buildFullCode() {
+        if (fullCode) return fullCode;
+
+        const response = await fetch(scriptPath + "?v=" + Date.now(), { cache: "no-store" });
+        if (!response.ok) throw new Error("HTTP " + response.status);
+
+        const source = await response.text();
+        const bytes = new TextEncoder().encode(source);
+        let binary = "";
+        bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
+
+        fullCode =
+          '(function(){var b=atob("' + btoa(binary) +
+          '");(0,eval)(new TextDecoder().decode(Uint8Array.from(b,function(c){return c.charCodeAt(0)})))})();';
+        return fullCode;
+      }
+
+      function flash(button, labelEl, idleText, message, kind) {
+        window.clearTimeout(resetTimer);
+        status.classList.remove("success", "error");
+        status.innerHTML = message;
+        if (kind) status.classList.add(kind);
+
+        if (kind === "success") {
+          button.classList.add("copied");
+          labelEl.textContent = "복사 완료";
+          resetTimer = window.setTimeout(() => {
+            button.classList.remove("copied");
+            labelEl.textContent = idleText;
+            status.classList.remove("success");
+            status.innerHTML = "복사 후 주소창에 <strong>javascript:</strong>를 직접 입력하고 이어 붙이세요.";
+          }, 3600);
+        }
+      }
+
+      $(prefix + "-loader").addEventListener("click", async () => {
+        const button = $(prefix + "-loader");
+        const label = $(prefix + "-loader-label");
+        preview.textContent = LOADER_CODE;
+
+        if (await copyText(LOADER_CODE)) {
+          flash(button, label, LOADER_IDLE,
+            "로더 복사 완료. 주소창에 <strong>javascript:</strong>를 입력하고 붙여넣으세요. (배포 후 동작)", "success");
+        } else {
+          flash(button, label, LOADER_IDLE,
+            "복사가 차단됐습니다. 아래 코드를 길게 눌러 직접 복사하세요.", "error");
+          manual.open = true;
+        }
+      });
+
+      $(prefix + "-full").addEventListener("click", async () => {
+        const button = $(prefix + "-full");
+        const label = $(prefix + "-full-label");
+
+        label.textContent = "코드 준비 중…";
+        let code;
+        try {
+          code = await buildFullCode();
+        } catch (error) {
+          console.error(error);
+          label.textContent = FULL_IDLE;
+          flash(button, label, FULL_IDLE,
+            `스크립트 파일(${scriptPath})을 읽지 못했습니다.`, "error");
+          return;
+        }
+
+        preview.textContent = code;
+        label.textContent = FULL_IDLE;
+
+        if (await copyText(code)) {
+          flash(button, label, FULL_IDLE,
+            `전체 코드 복사 완료 (${code.length.toLocaleString("ko-KR")}자). 주소창에 <strong>javascript:</strong> 입력 후 붙여넣으세요.`, "success");
+        } else {
+          flash(button, label, FULL_IDLE,
+            "복사가 차단됐습니다. 아래 코드를 길게 눌러 직접 복사하세요.", "error");
+          manual.open = true;
+        }
+      });
+    }
+
+    /* ══════════ TOOL: cleaner (글·댓글 일괄 정리) ══════════ */
+    TOOLS.cleaner = function () {
+      setupBookmarkletTab("cleaner", "tools/ygosu-cleaner.js");
+    };
+    /* ══════════ /TOOL: cleaner ══════════ */
+
+
+    /* ══════════ TOOL: finder (회원 글 찾기) ══════════ */
+    TOOLS.finder = function () {
+      setupBookmarkletTab("finder", "tools/ygosu-finder.js");
+    };
+    /* ══════════ /TOOL: finder ══════════ */
+
+
+    /* ─────────────────────────────────────────────────────
+       탭 엔진 (건드릴 일 없음)
+       ───────────────────────────────────────────────────── */
+    (function initTabs() {
+      const tabBar = $("tab-bar");
+      const panels = Array.from(document.querySelectorAll(".tool-panel"));
+      const started = new Set();
+      const buttons = [];
+
+      panels.forEach((panel, index) => {
+        const id = panel.dataset.tool;
+        const button = document.createElement("button");
+
+        button.type = "button";
+        button.className = "tab";
+        button.id = "tab-" + id;
+        button.textContent = panel.dataset.label || id;
+        button.setAttribute("role", "tab");
+        button.setAttribute("aria-controls", "panel-" + id);
+        button.dataset.tool = id;
+
+        panel.id = "panel-" + id;
+        panel.setAttribute("aria-labelledby", button.id);
+
+        button.addEventListener("click", () => select(id, true));
+        button.addEventListener("keydown", (event) => {
+          const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
+          if (!step) return;
+          event.preventDefault();
+          const next = buttons[(index + step + buttons.length) % buttons.length];
+          next.focus();
+          select(next.dataset.tool, true);
+        });
+
+        tabBar.appendChild(button);
+        buttons.push(button);
+      });
+
+      function select(id, updateHash) {
+        const active = panels.find((panel) => panel.dataset.tool === id);
+        if (!active) return;
+
+        panels.forEach((panel) => {
+          panel.hidden = panel !== active;
+        });
+
+        buttons.forEach((button) => {
+          const on = button.dataset.tool === id;
+          button.setAttribute("aria-selected", on ? "true" : "false");
+          button.tabIndex = on ? 0 : -1;
+        });
+
+        document.body.classList.toggle("is-wide", active.hasAttribute("data-wide"));
+
+        if (!started.has(id)) {
+          started.add(id);
+          try {
+            if (typeof TOOLS[id] === "function") TOOLS[id]();
+          } catch (error) {
+            console.error("[" + id + "] 초기화 실패", error);
+          }
+        }
+
+        if (updateHash) {
+          history.replaceState(null, "", "#" + id);
+        }
+      }
+
+      function fromHash() {
+        const id = location.hash.replace(/^#/, "");
+        return panels.some((panel) => panel.dataset.tool === id) ? id : panels[0].dataset.tool;
+      }
+
+      window.addEventListener("hashchange", () => select(fromHash(), false));
+      select(fromHash(), false);
+    })();
   </script>
 </body>
 </html>
