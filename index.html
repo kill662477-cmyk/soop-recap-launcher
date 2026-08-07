@@ -1243,7 +1243,7 @@
         </section>
         <!-- ══════════ /TOOL: 숲 리캡 ══════════ -->
         <!-- ══════════ TOOL: 글·댓글 정리 ══════════ -->
-        <section class="tool-panel" data-tool="cleaner" data-label="글·댓글 정리" role="tabpanel" tabindex="0">
+        <section class="tool-panel" data-tool="cleaner" data-label="글·댓글 정리" data-hidden role="tabpanel" tabindex="0">
           <div class="content">
             <div class="tool-topline">
               <p class="kicker" style="margin:0">BULK CLEANUP</p>
@@ -1307,6 +1307,7 @@
             </div>
 
             <p class="tool-note">
+              이 탭은 상단 탭 목록에서 숨겨져 있습니다. 주소 끝에 <strong>#cleaner</strong>를 붙여야 열립니다.
               로더는 짧지만 GitHub Pages·jsDelivr에 배포된 뒤에만 동작합니다. 배포 전에는 전체 코드 쪽을 쓰세요.
               F12 개발자도구 콘솔에 붙여넣어 실행해도 됩니다(콘솔이 붙여넣기를 막으면 <strong>allow pasting</strong> 입력 후 재시도).
             </p>
@@ -2018,10 +2019,15 @@
       const started = new Set();
       const buttons = [];
 
-      panels.forEach((panel, index) => {
+      panels.forEach((panel) => {
         const id = panel.dataset.tool;
-        const button = document.createElement("button");
+        panel.id = "panel-" + id;
 
+        // data-hidden 이 붙은 툴은 탭 버튼을 만들지 않는다.
+        // 주소 끝에 #아이디 를 붙이면 그대로 열린다.
+        if (panel.hasAttribute("data-hidden")) return;
+
+        const button = document.createElement("button");
         button.type = "button";
         button.className = "tab";
         button.id = "tab-" + id;
@@ -2030,10 +2036,14 @@
         button.setAttribute("aria-controls", "panel-" + id);
         button.dataset.tool = id;
 
-        panel.id = "panel-" + id;
         panel.setAttribute("aria-labelledby", button.id);
-
         button.addEventListener("click", () => select(id, true));
+
+        tabBar.appendChild(button);
+        buttons.push(button);
+      });
+
+      buttons.forEach((button, index) => {
         button.addEventListener("keydown", (event) => {
           const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0;
           if (!step) return;
@@ -2042,9 +2052,6 @@
           next.focus();
           select(next.dataset.tool, true);
         });
-
-        tabBar.appendChild(button);
-        buttons.push(button);
       });
 
       function select(id, updateHash) {
