@@ -27,24 +27,34 @@
   }
 
   var DELETE_ACTION = "/minilog/delete_all.yg";
-  var PAGE_SIZE = 30;          // 목록 한 페이지당 행 수
   var SCAN_DELAY = 400;        // 목록 페이지 요청 간격 (ms)
   var DELETE_DELAY = 900;      // 삭제 요청 간격 (ms)
   var BATCH_SIZE = 20;         // 한 번의 POST 로 보낼 항목 수
+
+  /* m.ygosu.com 은 PC 와 주소 체계가 다르다.
+     PC   : /minilog/?m2=article&member=X&m3=comment&m4=normal
+     모바일: /minilog/?member=X&menu=comment_list
+     PC 주소를 모바일에서 열면 목록 없는 프로필 페이지가 나온다.
+     마크업(.mrbox, table.tbl_ua, 삭제 폼)은 양쪽이 같아서 파서는 그대로 쓴다. */
+  var MOBILE = /^m\.ygosu\.com$/i.test(location.hostname) || window.IS_MOBILE === true;
 
   var MODES = {
     comment: {
       label: "내 댓글",
       mode: "comment",
       url: function (page) {
-        return "/minilog/?m2=article&member=" + ME + "&m3=comment&m4=normal&page=" + page;
+        return MOBILE
+          ? "/minilog/?member=" + ME + "&menu=comment_list&page=" + page
+          : "/minilog/?m2=article&member=" + ME + "&m3=comment&m4=normal&page=" + page;
       },
     },
     article: {
       label: "내 글",
       mode: "article",
       url: function (page) {
-        return "/minilog/?m2=article&member=" + ME + "&m3=list&page=" + page;
+        return MOBILE
+          ? "/minilog/?member=" + ME + "&menu=article_list&page=" + page
+          : "/minilog/?m2=article&member=" + ME + "&m3=list&page=" + page;
       },
     },
   };
@@ -147,15 +157,19 @@
       field = field || parsed.field;
       hidden = Object.keys(hidden).length ? hidden : parsed.hidden;
 
+      // 페이지당 개수가 PC 30개 / 모바일 20~10개로 달라서 개수로 끝을 판단하지 않는다.
+      // 새로 얻은 항목이 하나도 없으면 마지막 페이지를 반복해서 받은 것이다.
+      var added = 0;
       parsed.items.forEach(function (item) {
         if (seen[item.value]) return;
         seen[item.value] = true;
         collected.push(item);
+        added++;
       });
 
       onProgress(page, collected.length);
 
-      if (parsed.items.length < PAGE_SIZE) break;
+      if (!added) break;
       if (page < maxPages) await sleep(SCAN_DELAY);
     }
 

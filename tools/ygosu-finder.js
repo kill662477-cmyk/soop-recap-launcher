@@ -20,8 +20,20 @@
     return;
   }
 
-  var PAGE_SIZE = 30;
   var SCAN_DELAY = 350;
+
+  /* m.ygosu.com 은 PC 와 주소 체계가 다르다.
+     PC   : /minilog/?m2=article&member=X&m3=list
+     모바일: /minilog/?member=X&menu=article_list
+     PC 주소를 모바일에서 열면 목록 없는 프로필 페이지가 나온다.
+     마크업(table.tbl_ua)은 양쪽이 같아서 파서는 그대로 쓴다. */
+  var MOBILE = /^m\.ygosu\.com$/i.test(location.hostname) || window.IS_MOBILE === true;
+
+  function listUrl(member, page) {
+    return MOBILE
+      ? "/minilog/?member=" + member + "&menu=article_list&page=" + page
+      : "/minilog/?m2=article&member=" + member + "&m3=list&page=" + page;
+  }
 
   var state = { items: [], board: "", query: "", busy: false, abort: false, member: 0 };
 
@@ -84,13 +96,29 @@
       });
     });
 
-    var profile = {
-      nick: text(doc.querySelector(".det_myboard h3 a")),
-      counts: Array.prototype.map.call(
-        doc.querySelectorAll(".yg-minilog-tab-count"),
-        function (node) { return text(node).replace(/[()]/g, ""); }
-      ),
-    };
+    /* PC:     <h3><a ...>닉네임</a> <em>님의 작성글</em> <i>(총 <strong>N</strong>개)</i></h3>
+       모바일: <h3>닉네임 <em>님의 작성글</em> <i>(총 <strong>N</strong>개)</i></h3>  ← 링크 없이 텍스트 */
+    var head = doc.querySelector(".det_myboard h3");
+    var nick = text(head && head.querySelector("a"));
+    if (!nick && head) {
+      nick = Array.prototype.filter
+        .call(head.childNodes, function (node) { return node.nodeType === 3; })
+        .map(function (node) { return node.textContent; })
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+
+    // PC 는 글/댓글 탭에 각각 개수가 붙는다. 모바일에는 없어서 h3 의 총 개수를 쓴다.
+    var counts = Array.prototype.map.call(
+      doc.querySelectorAll(".yg-minilog-tab-count"),
+      function (node) { return text(node).replace(/[()]/g, ""); }
+    );
+    if (!counts.length && head && head.querySelector("strong")) {
+      counts = [text(head.querySelector("strong"))];
+    }
+
+    var profile = { nick: nick, counts: counts };
 
     return { items: items, profile: profile };
   }
@@ -103,21 +131,24 @@
     for (var page = 1; page <= maxPages; page++) {
       if (state.abort) break;
 
-      var url = "/minilog/?m2=article&member=" + member + "&m3=list&page=" + page;
-      var parsed = parsePage(await fetchDoc(url));
+      var parsed = parsePage(await fetchDoc(listUrl(member, page)));
 
       if (!profile && parsed.profile.nick) profile = parsed.profile;
       if (!parsed.items.length) break;
 
+      // 페이지당 개수가 PC 30개 / 모바일 20개로 달라서 개수로 끝을 판단하지 않는다.
+      // 새로 얻은 항목이 하나도 없으면 마지막 페이지를 반복해서 받은 것이다.
+      var added = 0;
       parsed.items.forEach(function (item) {
         if (seen[item.url]) return;
         seen[item.url] = true;
         collected.push(item);
+        added++;
       });
 
       onProgress(page, collected.length);
 
-      if (parsed.items.length < PAGE_SIZE) break;
+      if (!added) break;
       if (page < maxPages) await sleep(SCAN_DELAY);
     }
 
