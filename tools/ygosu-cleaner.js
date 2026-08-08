@@ -59,7 +59,7 @@
     },
   };
 
-  var state = { mode: "comment", items: [], field: "", hidden: {}, busy: false, abort: false };
+  var state = { mode: "comment", items: [], field: "", hidden: {}, pages: 1, busy: false, abort: false };
 
   /* ── 목록 수집 ─────────────────────────────────────── */
 
@@ -176,6 +176,7 @@
     state.items = collected;
     state.field = field;
     state.hidden = hidden;
+    state.pages = maxPages;   // 삭제 후 같은 범위를 다시 훑어 반영 여부를 확인한다
     return collected;
   }
 
@@ -196,15 +197,23 @@
 
     values.forEach(function (value) { body.append(state.field, value); });
 
+    /* 네이티브 폼은 목록 페이지에서 제출된다. 다른 페이지에서 보낸 요청을
+       서버가 걸러낼 수 있으므로 Referer 를 목록 페이지로 맞춘다. */
     var response = await fetch(DELETE_ACTION, {
       method: "POST",
       credentials: "same-origin",
+      referrer: location.origin + MODES[state.mode].url(1),
       headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" },
       body: body.toString(),
     });
 
     if (!response.ok) throw new Error("HTTP " + response.status);
-    return true;
+
+    /* 200 이 곧 삭제됨을 뜻하지 않는다. 실패해도 안내 페이지를 200 으로 준다.
+       진짜 확인은 아래 재조회로 하고, 여기서는 진단용으로 응답을 남긴다. */
+    var text = await response.text();
+    console.log("[cleaner] delete_all.yg 응답 " + text.length + "자:", text.slice(0, 400));
+    return text;
   }
 
   /* ── UI ────────────────────────────────────────────── */
@@ -430,16 +439,45 @@
         if (i + BATCH_SIZE < values.length) await sleep(DELETE_DELAY);
       }
 
-      var deleted = {};
-      values.slice(0, done).forEach(function (value) { deleted[value] = true; });
-      state.items = state.items.filter(function (item) { return !deleted[item.value]; });
+      /* 요청이 200 으로 돌아왔다고 지워진 게 아니다.
+         목록을 다시 받아 실제로 사라졌는지 세어 보고 그 숫자를 보고한다. */
+      say("삭제 반영 확인 중… 목록을 다시 불러옵니다.");
+
+      // 중지를 눌러 멈춘 경우에도 확인은 해야 한다. 안 그러면 재조회가 즉시 끊겨
+      // 항목이 사라진 것처럼 보이고 "삭제됨"으로 오판한다.
+      state.abort = false;
+
+      var requested = values.slice(0, done);
+      var stillThere = {};
+      var verified = true;
+
+      try {
+        await scan(state.pages || 1, function () {});
+        state.items.forEach(function (item) { stillThere[item.value] = true; });
+      } catch (error) {
+        verified = false;
+      }
+
       renderList();
 
-      say(
-        "삭제 요청 완료: " + done + "개" + (failed ? " / 실패 " + failed + "개" : "") +
-          ". 실제 반영 여부는 목록을 다시 불러와 확인하세요.",
-        failed ? "err" : "ok"
-      );
+      if (!verified) {
+        say("삭제 요청은 보냈지만 목록을 다시 불러오지 못해 확인하지 못했습니다. 직접 확인하세요.", "err");
+      } else {
+        var gone = requested.filter(function (value) { return !stillThere[value]; }).length;
+        var left = requested.length - gone;
+
+        if (gone === requested.length && !failed) {
+          say("삭제 완료: " + gone + "개. 목록에서 사라진 것을 확인했습니다.", "ok");
+        } else if (gone === 0) {
+          say(
+            "실제로는 하나도 지워지지 않았습니다. 와이고수가 요청을 거부한 것으로 보입니다. " +
+              "콘솔(F12)의 [cleaner] 응답 내용을 확인하세요.",
+            "err"
+          );
+        } else {
+          say("삭제 확인 " + gone + "개, 남아 있는 것 " + left + "개. 남은 것은 다시 시도하세요.", "err");
+        }
+      }
     } finally {
       state.abort = false;
       setBusy(false);
