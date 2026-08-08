@@ -30,6 +30,7 @@
   var SCAN_DELAY = 400;        // 목록 페이지 요청 간격 (ms)
   var DELETE_DELAY = 900;      // 삭제 요청 간격 (ms)
   var BATCH_SIZE = 20;         // 한 번의 POST 로 보낼 항목 수
+  var CHECKPOINT = 10;         // 이만큼 배치를 보낼 때마다 실제 반영을 확인한다
 
   /* m.ygosu.com 은 PC 와 주소 체계가 다르다.
      PC   : /minilog/?m2=article&member=X&m3=comment&m4=normal
@@ -209,11 +210,16 @@
 
     if (!response.ok) throw new Error("HTTP " + response.status);
 
-    /* 200 이 곧 삭제됨을 뜻하지 않는다. 실패해도 안내 페이지를 200 으로 준다.
-       진짜 확인은 아래 재조회로 하고, 여기서는 진단용으로 응답을 남긴다. */
-    var text = await response.text();
-    console.log("[cleaner] delete_all.yg 응답 " + text.length + "자:", text.slice(0, 400));
-    return text;
+    // 200 이 곧 삭제됨을 뜻하지 않는다. 실패해도 안내 페이지를 200 으로 준다.
+    return response.text();
+  }
+
+  /* 삭제 응답은 backurl 로 돌아온 목록 페이지라 "(총 N개)" 가 들어 있다.
+     이 숫자가 줄어들지 않으면 서버가 요청을 받아주지 않은 것이다.
+     전체 재조회(200페이지면 수십 초) 없이 매 요청마다 확인할 수 있다. */
+  function totalFrom(html) {
+    var match = String(html).match(/\(총\s*<strong>\s*([\d,]+)\s*<\/strong>/);
+    return match ? Number(match[1].replace(/,/g, "")) : null;
   }
 
   /* ── UI ────────────────────────────────────────────── */
@@ -422,6 +428,11 @@
 
     var done = 0;
     var failed = 0;
+    var stalled = false;
+    var batches = 0;
+    var firstTotal = null;
+    var lastTotal = null;
+    var checkpointTotal = null;
 
     try {
       for (var i = 0; i < values.length; i += BATCH_SIZE) {
@@ -429,13 +440,35 @@
 
         var batch = values.slice(i, i + BATCH_SIZE);
         try {
-          await deleteBatch(batch);
+          var html = await deleteBatch(batch);
           done += batch.length;
+
+          var total = totalFrom(html);
+          if (total !== null) {
+            if (firstTotal === null) firstTotal = checkpointTotal = total;
+            lastTotal = total;
+          }
         } catch (error) {
           failed += batch.length;
         }
 
-        say("삭제 중… " + done + "/" + values.length + (failed ? " (실패 " + failed + ")" : ""));
+        batches++;
+        say(
+          "삭제 중… " + done + "/" + values.length +
+            (lastTotal !== null ? " (남은 전체 " + lastTotal.toLocaleString("ko-KR") + "개)" : "") +
+            (failed ? " / 실패 " + failed : "")
+        );
+
+        /* 총 개수가 한동안 전혀 줄지 않으면 서버가 받아주지 않는 것이다.
+           수백 번을 더 보내며 "성공"이라고 말하는 대신 여기서 멈춘다. */
+        if (lastTotal !== null && batches % CHECKPOINT === 0) {
+          if (lastTotal >= checkpointTotal) {
+            stalled = true;
+            break;
+          }
+          checkpointTotal = lastTotal;
+        }
+
         if (i + BATCH_SIZE < values.length) await sleep(DELETE_DELAY);
       }
 
@@ -466,12 +499,18 @@
         var gone = requested.filter(function (value) { return !stillThere[value]; }).length;
         var left = requested.length - gone;
 
-        if (gone === requested.length && !failed) {
+        if (stalled) {
+          say(
+            "삭제 " + gone + "개에서 멈췄습니다. 그 뒤로는 전체 개수가 줄지 않아 와이고수가 요청을 " +
+              "받지 않는다고 보고 중단했습니다. 잠시 뒤 적은 개수로 다시 시도하세요.",
+            "err"
+          );
+        } else if (gone === requested.length && !failed) {
           say("삭제 완료: " + gone + "개. 목록에서 사라진 것을 확인했습니다.", "ok");
         } else if (gone === 0) {
           say(
             "실제로는 하나도 지워지지 않았습니다. 와이고수가 요청을 거부한 것으로 보입니다. " +
-              "콘솔(F12)의 [cleaner] 응답 내용을 확인하세요.",
+              "한 번에 지우는 개수를 줄여 보세요.",
             "err"
           );
         } else {
