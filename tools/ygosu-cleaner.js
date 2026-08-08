@@ -28,9 +28,12 @@
 
   var DELETE_ACTION = "/minilog/delete_all.yg";
   var SCAN_DELAY = 400;        // 목록 페이지 요청 간격 (ms)
-  var DELETE_DELAY = 900;      // 삭제 요청 간격 (ms)
-  var BATCH_SIZE = 20;         // 한 번의 POST 로 보낼 항목 수
-  var CHECKPOINT = 10;         // 이만큼 배치를 보낼 때마다 실제 반영을 확인한다
+  var DELETE_DELAY = 600;      // 삭제 요청 간격 (ms). 건당 1요청이라 너무 길면 못 쓴다
+  /* 와이고수는 article_selected[] 를 배열로 받지 않는다. 한 요청에 20개를 실어
+     보내도 딱 1건만 지워진다(90개 선택 → 5배치 → 5개 삭제로 확인). 그래서
+     한 건씩 보낸다. 선택한 개수만큼 요청이 나가므로 그만큼 시간이 걸린다. */
+  var BATCH_SIZE = 1;
+  var CHECKPOINT = 10;         // 이만큼 요청할 때마다 실제로 줄고 있는지 확인한다
 
   /* m.ygosu.com 은 PC 와 주소 체계가 다르다.
      PC   : /minilog/?m2=article&member=X&m3=comment&m4=normal
@@ -414,9 +417,14 @@
     var values = checkedValues();
     if (!values.length) return;
 
+    // 와이고수가 건당 1요청만 처리하므로 개수만큼 시간이 든다. 미리 알려준다.
+    var minutes = Math.ceil((values.length * DELETE_DELAY) / 60000);
+
     var typed = prompt(
-      "선택한 " + values.length + "개 " + MODES[state.mode].label +
-        "을(를) 삭제합니다.\n되돌릴 수 없습니다.\n\n진행하려면 아래에 " + values.length + " 를 입력하세요."
+      "선택한 " + values.length + "개 " + MODES[state.mode].label + "을(를) 삭제합니다.\n" +
+        "되돌릴 수 없습니다.\n\n" +
+        "와이고수는 한 번에 한 건만 지워서 약 " + minutes + "분 걸립니다. 창을 켜 두세요.\n\n" +
+        "진행하려면 아래에 " + values.length + " 를 입력하세요."
     );
     if (String(typed).trim() !== String(values.length)) {
       say("취소했습니다.");
@@ -453,10 +461,12 @@
         }
 
         batches++;
+        var left = values.length - done - failed;
         say(
           "삭제 중… " + done + "/" + values.length +
-            (lastTotal !== null ? " (남은 전체 " + lastTotal.toLocaleString("ko-KR") + "개)" : "") +
-            (failed ? " / 실패 " + failed : "")
+            (left > 0 ? " · 남은 시간 약 " + Math.ceil((left * DELETE_DELAY) / 60000) + "분" : "") +
+            (lastTotal !== null ? " · 전체 " + lastTotal.toLocaleString("ko-KR") + "개" : "") +
+            (failed ? " · 실패 " + failed : "")
         );
 
         /* 총 개수가 한동안 전혀 줄지 않으면 서버가 받아주지 않는 것이다.
