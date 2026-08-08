@@ -118,7 +118,18 @@
       counts = [text(head.querySelector("strong"))];
     }
 
-    var profile = { nick: nick, counts: counts };
+    /* 미니로그를 비공개로 잠근 회원은 목록 대신 안내문만 돌려준다.
+       PC/모바일 모두 같은 마크업이다:
+         <div class='fr_not'>닉 님이 글목록을 <strong>비공개</strong> (으)로 설정하였습니다.</div>
+       "글이 없음"과 구분해야 이용자가 이유를 알 수 있다. */
+    var note = doc.querySelector(".fr_not");
+    var blocked = !!(note && /비공개|설정하였습니다/.test(text(note)));
+    if (blocked && !nick) {
+      // PC 는 안내문 안에 닉네임 링크가 있고, 모바일은 맨 텍스트라 문장에서 뽑는다.
+      nick = text(note.querySelector("a")) || (text(note).match(/^(.+?)\s*님이/) || [])[1] || "";
+    }
+
+    var profile = { nick: nick, counts: counts, blocked: blocked };
 
     return { items: items, profile: profile };
   }
@@ -133,7 +144,8 @@
 
       var parsed = parsePage(await fetchDoc(listUrl(member, page)));
 
-      if (!profile && parsed.profile.nick) profile = parsed.profile;
+      if (!profile && (parsed.profile.nick || parsed.profile.blocked)) profile = parsed.profile;
+      if (parsed.profile.blocked) break;
       if (!parsed.items.length) break;
 
       // 페이지당 개수가 PC 30개 / 모바일 20개로 달라서 개수로 끝을 판단하지 않는다.
@@ -152,7 +164,7 @@
       if (page < maxPages) await sleep(SCAN_DELAY);
     }
 
-    return { items: collected, profile: profile || { nick: "", counts: [] } };
+    return { items: collected, profile: profile || { nick: "", counts: [], blocked: false } };
   }
 
   /* ── UI ────────────────────────────────────────────── */
@@ -362,12 +374,14 @@
 
       renderChips();
       renderList();
-      say(
-        state.items.length
-          ? state.items.length + "개 수집 완료. 게시판 칩으로 걸러 볼 수 있습니다."
-          : "글이 없거나 비공개 회원입니다.",
-        state.items.length ? "ok" : null
-      );
+
+      if (state.items.length) {
+        say(state.items.length + "개 수집 완료. 게시판 칩으로 걸러 볼 수 있습니다.", "ok");
+      } else if (result.profile.blocked) {
+        say("이 회원이 글목록을 비공개로 설정했습니다. 와이고수에서도 볼 수 없습니다.", "err");
+      } else {
+        say("작성한 글이 없습니다.");
+      }
     } catch (error) {
       say("조회 실패: " + error.message, "err");
     } finally {

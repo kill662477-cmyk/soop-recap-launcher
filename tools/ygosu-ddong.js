@@ -137,6 +137,21 @@
     return rows;
   }
 
+  /* 미니로그를 비공개로 잠근 회원은 목록 대신 안내문만 돌려준다.
+     PC/모바일, 글/댓글 모두 같은 마크업이다:
+       <div class='fr_not'>닉 님이 글목록을 <strong>비공개</strong> (으)로 설정하였습니다.</div>
+     이걸 "글이 없다"로 처리하면 비공개 회원이 전부 클린유저로 판정된다. */
+  function blockedNote(doc) {
+    var note = doc.querySelector(".fr_not");
+    if (!note) return null;
+    var body = text(note);
+    if (!/비공개|설정하였습니다/.test(body)) return null;
+
+    // PC 는 안내문 안에 닉네임 링크가 있고, 모바일은 맨 텍스트라 문장에서 뽑는다.
+    var nick = text(note.querySelector("a")) || (body.match(/^(.+?)\s*님이/) || [])[1] || "";
+    return { nick: nick, note: body };
+  }
+
   function nickOf(doc) {
     var head = doc.querySelector(".det_myboard h3");
     var nick = text(head && head.querySelector("a"));
@@ -156,11 +171,19 @@
   /** 작성댓글 목록을 훑어 본문에 단어가 들어간 댓글을 모은다. */
   async function scanComments(member, maxPages, hits, seen, onProgress) {
     var scanned = 0;
+    var blocked = null;
 
     for (var page = 1; page <= maxPages; page++) {
       if (state.abort) break;
 
-      var rows = parseComments(await fetchDoc(commentUrl(member, page)));
+      var doc = await fetchDoc(commentUrl(member, page));
+
+      if (page === 1) {
+        blocked = blockedNote(doc);
+        if (blocked) break;
+      }
+
+      var rows = parseComments(doc);
       if (!rows.length) break;
 
       var fresh = 0;
@@ -194,7 +217,7 @@
       await sleep(DELAY);
     }
 
-    return scanned;
+    return { scanned: scanned, blocked: !!blocked };
   }
 
   async function judge(member, postPages, commentPages, onProgress) {
@@ -202,8 +225,9 @@
     var seen = {};
     var scanned = 0;
     var nick = "";
+    var postsBlocked = false;
 
-    for (var w = 0; w < WORDS.length; w++) {
+    for (var w = 0; w < WORDS.length && !postsBlocked; w++) {
       if (state.abort) break;
       var word = WORDS[w];
 
@@ -212,6 +236,13 @@
 
         var doc = await fetchDoc(searchUrl(member, word, page));
         if (!nick) nick = nickOf(doc);
+
+        var blocked = blockedNote(doc);
+        if (blocked) {
+          postsBlocked = true;
+          if (!nick) nick = blocked.nick;
+          break;
+        }
 
         var rows = parseRows(doc);
         if (!rows.length) break;
@@ -247,13 +278,23 @@
     }
 
     var commentsScanned = 0;
+    var commentsBlocked = false;
     if (!state.abort && commentPages > 0) {
-      commentsScanned = await scanComments(member, commentPages, hits, seen, function (page, done, found) {
+      var result = await scanComments(member, commentPages, hits, seen, function (page, done, found) {
         onProgress("댓글 " + page + "페이지까지 " + done + "건 대조… 적발 " + found + "건");
       });
+      commentsScanned = result.scanned;
+      commentsBlocked = result.blocked;
     }
 
-    return { hits: hits, scanned: scanned, commentsScanned: commentsScanned, nick: nick };
+    return {
+      hits: hits,
+      scanned: scanned,
+      commentsScanned: commentsScanned,
+      postsBlocked: postsBlocked,
+      commentsBlocked: commentsBlocked,
+      nick: nick,
+    };
   }
 
   /* ── UI ────────────────────────────────────────────── */
@@ -300,6 +341,8 @@
     ".card{width:min(100%,440px);padding:34px 28px 26px;border:1px solid rgba(255,255,255,.16);border-radius:22px;text-align:center;animation:pop .32s cubic-bezier(.2,.9,.3,1.2) both}",
     ".card.bad{background:linear-gradient(160deg,#5a1712,#2a0b09);box-shadow:0 30px 80px rgba(226,72,60,.35)}",
     ".card.good{background:linear-gradient(160deg,#0d4030,#062018);box-shadow:0 30px 80px rgba(75,225,160,.28)}",
+    ".card.unknown{background:linear-gradient(160deg,#2b3550,#141b2c);box-shadow:0 30px 80px rgba(0,0,0,.45)}",
+    ".card.unknown h2{color:#c4d0e1}",
     ".card .face{font-size:60px;line-height:1}",
     ".card h2{margin:14px 0 0;font-size:44px;font-weight:900;letter-spacing:-.03em}",
     ".card.bad h2{color:#ff8b80}",
@@ -340,29 +383,56 @@
     box.textContent = message;
   }
 
-  function showPopup(isBad, result, member) {
+  function showPopup(result, member) {
     var hits = result.hits;
     var posts = hits.filter(function (hit) { return hit.kind === "글"; }).length;
     var comments = hits.length - posts;
 
-    el("card").className = "card " + (isBad ? "bad" : "good");
-    el("face").textContent = isBad ? "💩" : "✨";
-    el("verdict").textContent = isBad ? "똥퀴!" : "클린유저";
-    el("detail").innerHTML = isBad
-      ? "금지 단어 <b>" + escapeHtml(hits[0].word) + "</b> 등 <b>" + hits.length + "건</b> 사용 확인." +
+    // 적발이 하나라도 있으면 그대로 판정한다. 적발이 없는데 목록이 잠겨 있으면
+    // "안 썼다"가 아니라 "못 봤다"이므로 클린유저로 처리하지 않는다.
+    var blockedNames = [];
+    if (result.postsBlocked) blockedNames.push("글목록");
+    if (result.commentsBlocked) blockedNames.push("댓글목록");
+
+    var kind = hits.length ? "bad" : blockedNames.length ? "unknown" : "good";
+
+    el("card").className = "card " + kind;
+    el("face").textContent = kind === "bad" ? "💩" : kind === "good" ? "✨" : "🔒";
+    el("verdict").textContent = kind === "bad" ? "똥퀴!" : kind === "good" ? "클린유저" : "판정 불가";
+
+    if (kind === "bad") {
+      el("detail").innerHTML =
+        "금지 단어 <b>" + escapeHtml(hits[0].word) + "</b> 등 <b>" + hits.length + "건</b> 사용 확인." +
         "<br>글 " + posts + "건 · 댓글 " + comments + "건" +
-        "<br>스타대학 게시판은 판정에서 제외했습니다."
-      : "검사 단어 " + WORDS.length + "개 중 사용 이력 없음." +
+        "<br>스타대학 게시판은 판정에서 제외했습니다.";
+    } else if (kind === "good") {
+      el("detail").innerHTML =
+        "검사 단어 " + WORDS.length + "개 중 사용 이력 없음." +
         "<br>글 " + result.scanned + "건 · 댓글 " + result.commentsScanned + "건을 훑었습니다.";
+    } else {
+      el("detail").innerHTML =
+        "이 회원이 <b>" + blockedNames.join("과 ") + "</b>을(를) 비공개로 설정했습니다." +
+        "<br>내용을 볼 수 없어 판정할 수 없습니다." +
+        (blockedNames.length === 1
+          ? "<br>공개된 쪽에서는 적발되지 않았습니다."
+          : "");
+    }
+
     el("who2").textContent = (result.nick ? result.nick + " " : "") + "#" + member;
     el("pop").hidden = false;
   }
 
-  function renderHits(hits) {
+  function renderHits(hits, result) {
     var list = el("list");
 
     if (!hits.length) {
-      list.innerHTML = '<div class="empty">해당 단어를 쓴 글이 없습니다.</div>';
+      var locked = [];
+      if (result && result.postsBlocked) locked.push("글목록");
+      if (result && result.commentsBlocked) locked.push("댓글목록");
+
+      list.innerHTML = locked.length
+        ? '<div class="empty">🔒 이 회원이 ' + locked.join("과 ") + "을(를) 비공개로 설정해 내용을 볼 수 없습니다.</div>"
+        : '<div class="empty">해당 단어를 쓴 글이 없습니다.</div>';
       return;
     }
 
@@ -423,13 +493,21 @@
       var result = await judge(member, postPages, commentPages, say);
 
       el("who").textContent = (result.nick ? result.nick + " " : "") + "#" + member;
-      renderHits(result.hits);
-      say(
-        result.hits.length
-          ? "적발 " + result.hits.length + "건. 아래 목록에서 원문을 확인하세요."
-          : "적발 없음. 훑은 글 " + result.scanned + "건 · 댓글 " + result.commentsScanned + "건."
-      );
-      showPopup(result.hits.length > 0, result, member);
+      renderHits(result.hits, result);
+
+      var locked = [];
+      if (result.postsBlocked) locked.push("글목록");
+      if (result.commentsBlocked) locked.push("댓글목록");
+
+      if (result.hits.length) {
+        say("적발 " + result.hits.length + "건. 아래 목록에서 원문을 확인하세요.");
+      } else if (locked.length) {
+        say("이 회원은 " + locked.join("과 ") + "을(를) 비공개로 설정했습니다. 판정할 수 없습니다.", "err");
+      } else {
+        say("적발 없음. 훑은 글 " + result.scanned + "건 · 댓글 " + result.commentsScanned + "건.");
+      }
+
+      showPopup(result, member);
     } catch (error) {
       say("감별 실패: " + error.message, "err");
     } finally {
