@@ -20,7 +20,6 @@
 
   var WORDS = ["젖퀴", "젖캄", "젖갤", "젖몬", "젖센세", "젖햄", "젖능크", "젖카페", "젖환", "젖대게"];
   var EXCLUDE_BOARDS = ["pan_monstarz"]; // 스타대학(스대게)은 판정 대상에서 제외
-  var MAX_PAGES = 3;                     // 단어 하나당 훑을 최대 페이지 수
   var DELAY = 300;
 
   var MOBILE = /^m\.ygosu\.com$/i.test(location.hostname) || window.IS_MOBILE === true;
@@ -198,7 +197,7 @@
     return scanned;
   }
 
-  async function judge(member, commentPages, onProgress) {
+  async function judge(member, postPages, commentPages, onProgress) {
     var hits = [];
     var seen = {};
     var scanned = 0;
@@ -208,7 +207,7 @@
       if (state.abort) break;
       var word = WORDS[w];
 
-      for (var page = 1; page <= MAX_PAGES; page++) {
+      for (var page = 1; page <= postPages; page++) {
         if (state.abort) break;
 
         var doc = await fetchDoc(searchUrl(member, word, page));
@@ -217,15 +216,19 @@
         var rows = parseRows(doc);
         if (!rows.length) break;
 
-        var added = 0;
+        // fresh 는 제외 여부와 무관하게 "처음 본 글" 수다.
+        // 스타대학 글만 나온 페이지에서 멈추면 그 뒤의 다른 게시판 글을 놓치므로
+        // 적발 건수가 아니라 fresh 로 끝을 판단한다.
+        var fresh = 0;
         rows.forEach(function (row) {
-          scanned++;
-          if (EXCLUDE_BOARDS.indexOf(row.boardId) >= 0) return; // 스타대학 제외
-
           var key = word + "|" + row.url;
           if (seen[key]) return;
           seen[key] = true;
-          added++;
+          fresh++;
+          scanned++;
+
+          if (EXCLUDE_BOARDS.indexOf(row.boardId) >= 0) return; // 스타대학 제외
+
           hits.push({
             kind: "글",
             word: word,
@@ -238,7 +241,7 @@
         });
 
         onProgress("[" + (w + 1) + "/" + WORDS.length + "] 글 '" + word + "' 검사… 적발 " + hits.length + "건 / 훑은 글 " + scanned + "건");
-        if (!added && page > 1) break;
+        if (!fresh) break;
         await sleep(DELAY);
       }
     }
@@ -274,7 +277,7 @@
     ".bar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:12px 18px;border-bottom:1px solid rgba(255,255,255,.12);font-size:13px}",
     "button{font:inherit;cursor:pointer}",
     "input{padding:8px 10px;border:1px solid rgba(255,255,255,.16);border-radius:9px;background:rgba(255,255,255,.06);color:#f6f8fc;font:inherit;font-size:13px}",
-    "input#member{width:190px}input#cpages{width:64px}",
+    "input#member{width:190px}input#ppages,input#cpages{width:62px}",
     ".kind{padding:3px 8px;border:1px solid rgba(255,255,255,.18);border-radius:999px;color:#c4d0e1;font-size:11px;font-weight:700;white-space:nowrap}",
     ".btn{padding:8px 14px;border:1px solid rgba(255,255,255,.18);border-radius:10px;background:rgba(255,255,255,.07);color:#f6f8fc;font-size:13px;font-weight:700}",
     ".btn.go{border-color:transparent;background:#1769ff}",
@@ -312,13 +315,15 @@
     '    <button class="x" id="close" title="닫기">✕</button></div>',
     '  <div class="bar">',
     '    <input id="member" placeholder="회원번호 또는 미니로그 주소" inputmode="numeric">',
+    '    <span>글</span><input id="ppages" type="number" value="10" min="1" max="200">',
     '    <span>댓글</span><input id="cpages" type="number" value="20" min="0" max="200"><span>페이지</span>',
     '    <button class="btn go" id="go">감별</button><button class="btn" id="stop" disabled>중지</button>',
     "  </div>",
     '  <div class="msg" id="msg">회원번호를 넣고 감별을 누르세요. 스타대학 게시판 글은 판정에서 빠집니다.</div>',
     '  <div class="list" id="list"><div class="empty">아직 감별하지 않았습니다.</div></div>',
     '  <div class="ft" id="ft">검사 단어: ' + WORDS.join(", ") +
-      "<br>댓글은 목록에 보이는 앞부분만 대조합니다(긴 댓글은 뒤쪽이 잘림). 0을 넣으면 댓글을 건너뜁니다.</div>",
+      "<br>글은 단어 하나당, 댓글은 전체 기준 페이지 수입니다. 결과가 더 없으면 상한 전에 알아서 멈춥니다." +
+      "<br>댓글은 목록에 보이는 앞부분만 대조합니다(긴 댓글은 뒤쪽이 잘림). 댓글에 0을 넣으면 건너뜁니다.</div>",
     "</div></div>",
     '<div class="pop" id="pop" hidden><div class="card" id="card">',
     '  <div class="face" id="face"></div><h2 id="verdict"></h2>',
@@ -411,10 +416,11 @@
     el("list").innerHTML = '<div class="empty">감별 중…</div>';
     say("감별 중…");
 
+    var postPages = Math.max(1, Math.min(200, Number(el("ppages").value) || 1));
     var commentPages = Math.max(0, Math.min(200, Number(el("cpages").value) || 0));
 
     try {
-      var result = await judge(member, commentPages, say);
+      var result = await judge(member, postPages, commentPages, say);
 
       el("who").textContent = (result.nick ? result.nick + " " : "") + "#" + member;
       renderHits(result.hits);
