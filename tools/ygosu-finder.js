@@ -134,6 +134,132 @@
     return { items: items, profile: profile };
   }
 
+  /* ── 글목록 비공개 회원용 우회 경로 ────────────────────
+     미니로그가 잠겨 있어도 글 자체는 게시판에 공개돼 있고,
+     게시판 검색에는 글쓴이 검색(searcht=w)이 있다.
+     게시판을 하나씩 돌며 그 사람 글을 긁어 목록을 복원한다. */
+
+  function authorUrl(board, nick, page) {
+    return "/board/" + board + "/?searcht=w&search=" + encodeURIComponent(nick) + "&page=" + page;
+  }
+
+  /** /board/all 에서 실제 게시판 목록을 뽑는다. 카테고리 링크는 뒤에서 걸러진다. */
+  async function loadBoards() {
+    var doc = await fetchDoc("/board/all");
+    var seen = {};
+    var boards = [];
+
+    doc.querySelectorAll('a[href*="/board/"]').forEach(function (anchor) {
+      var id = ((anchor.getAttribute("href") || "").match(/\/board\/([a-z_0-9]+)/) || [])[1];
+      if (!id || seen[id]) return;
+      if (["all", "ad", "notice", "best_article"].indexOf(id) >= 0) return;
+      seen[id] = true;
+      boards.push({ id: id, name: text(anchor).replace(/^☆\s*/, "").trim() || id });
+    });
+
+    return boards;
+  }
+
+  /** 글쓴이 검색 결과 한 장을 읽는다. PC 와 모바일 마크업이 달라 둘 다 본다. */
+  function parseAuthorRows(doc, board, boardName) {
+    var rows = [];
+    var postPattern = new RegExp("/board/" + board + "/(\\d+)");
+    // 검색 결과 링크에는 ?searcht=w&search=... 가 붙어 있다. 글 주소만 남긴다.
+    var clean = function (href) { return absolute((href || "").split("?")[0]); };
+
+    // PC: <table class='bd_list'> 안의 <tr>. 회원번호가 닉네임 onclick 에 들어 있다.
+    doc.querySelectorAll("table.bd_list tr").forEach(function (tr) {
+      if (tr.className.indexOf("notice") >= 0) return;
+
+      var link = tr.querySelector("td.tit a[href*='/board/']");
+      if (!link || !postPattern.test(link.getAttribute("href") || "")) return;
+
+      var nickLink = tr.querySelector("td.name a[onclick*='show_nick_dropdown']");
+      var memberNo = nickLink
+        ? ((nickLink.getAttribute("onclick") || "").match(/show_nick_dropdown\([^,]*,\s*'[^']*',\s*'(\d+)'/) || [])[1]
+        : "";
+
+      rows.push({
+        title: text(link) || "(제목 없음)",
+        url: clean(link.getAttribute("href")),
+        boardId: board,
+        boardName: boardName,
+        memberNo: memberNo || "",
+        nick: text(nickLink),
+        view: text(tr.querySelector("td.read")),
+        date: text(tr.querySelector("td.date")),
+        vote: text(tr.querySelector("td.vote")),
+      });
+    });
+
+    if (rows.length) return rows;
+
+    // 모바일: <li><a><span class='subject'>제목</span><p>닉 | 날짜 | 조회 : N</p></a></li>
+    // 회원번호가 없어 닉네임으로만 대조할 수 있다.
+    doc.querySelectorAll("li a[href*='/board/']").forEach(function (anchor) {
+      if (!postPattern.test(anchor.getAttribute("href") || "")) return;
+
+      var subject = anchor.querySelector(".subject");
+      var meta = text(anchor.querySelector("p")).split("|");
+
+      rows.push({
+        title: text(subject) || "(제목 없음)",
+        url: clean(anchor.getAttribute("href")),
+        boardId: board,
+        boardName: boardName,
+        memberNo: "",
+        nick: (meta[0] || "").trim(),
+        view: (meta[2] || "").replace(/[^\d]/g, ""),
+        date: (meta[1] || "").trim(),
+        vote: "",
+      });
+    });
+
+    return rows;
+  }
+
+  /** 게시판을 순회하며 그 회원의 글을 모은다. */
+  async function scanByAuthor(member, nick, maxPagesPerBoard, onProgress) {
+    var boards = await loadBoards();
+    var collected = [];
+    var seen = {};
+
+    for (var b = 0; b < boards.length; b++) {
+      if (state.abort) break;
+      var board = boards[b];
+
+      for (var page = 1; page <= maxPagesPerBoard; page++) {
+        if (state.abort) break;
+
+        var doc;
+        try {
+          doc = await fetchDoc(authorUrl(board.id, nick, page));
+        } catch (error) {
+          break; // 없는 게시판이거나 일시 오류. 다음 게시판으로.
+        }
+
+        var rows = parseAuthorRows(doc, board.id, board.name);
+        if (!rows.length) break; // 카테고리 링크이거나 결과 없음
+
+        var fresh = 0;
+        rows.forEach(function (row) {
+          // 회원번호가 있으면 그걸로, 없으면(모바일) 닉네임으로 동명이인을 거른다
+          if (row.memberNo ? row.memberNo !== String(member) : row.nick !== nick) return;
+          if (seen[row.url]) return;
+          seen[row.url] = true;
+          fresh++;
+          collected.push(row);
+        });
+
+        onProgress(b + 1, boards.length, board.name, collected.length);
+        if (!fresh) break;
+        await sleep(SCAN_DELAY);
+      }
+    }
+
+    return collected;
+  }
+
   async function scan(member, maxPages, onProgress) {
     var collected = [];
     var seen = {};
@@ -367,18 +493,32 @@
       });
 
       state.items = result.items;
-      el("who").textContent = result.profile.nick ? result.profile.nick + " (#" + member + ")" : "#" + member;
       el("sub").textContent = result.profile.counts.length
         ? "작성글 " + result.profile.counts[0] + " / 작성댓글 " + (result.profile.counts[1] || "-")
         : "";
 
+      var viaAuthor = false;
+
+      // 미니로그가 잠겨 있으면 게시판 글쓴이 검색으로 돌아간다.
+      if (!state.items.length && result.profile.blocked && result.profile.nick) {
+        viaAuthor = true;
+        say("글목록이 비공개입니다. 게시판 글쓴이 검색으로 전환합니다…");
+        state.items = await scanByAuthor(member, result.profile.nick, maxPages, function (index, total, name, found) {
+          say("[" + index + "/" + total + "] " + name + " 검색… " + found + "개 수집");
+        });
+      }
+
+      el("who").textContent = (result.profile.nick ? result.profile.nick + " " : "") + "#" + member;
+
       renderChips();
       renderList();
 
-      if (state.items.length) {
+      if (state.items.length && viaAuthor) {
+        say(state.items.length + "개 수집 완료. 글목록이 비공개라 게시판 글쓴이 검색으로 찾은 결과입니다.", "ok");
+      } else if (state.items.length) {
         say(state.items.length + "개 수집 완료. 게시판 칩으로 걸러 볼 수 있습니다.", "ok");
       } else if (result.profile.blocked) {
-        say("이 회원이 글목록을 비공개로 설정했습니다. 와이고수에서도 볼 수 없습니다.", "err");
+        say("글목록이 비공개이고 글쓴이 검색으로도 글을 찾지 못했습니다.", "err");
       } else {
         say("작성한 글이 없습니다.");
       }

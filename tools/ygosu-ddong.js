@@ -168,6 +168,133 @@
 
   var state = { busy: false, abort: false };
 
+  /* ── 글목록 비공개 회원용 우회 경로 ────────────────────
+     미니로그가 잠겨 있어도 글 자체는 게시판에 공개돼 있고,
+     게시판 검색에는 글쓴이 검색(searcht=w)이 있다.
+     다만 글쓴이와 단어를 동시에 걸 수 없어 제목만 대조한다. 본문은 못 본다. */
+
+  async function loadBoards() {
+    var doc = await fetchDoc("/board/all");
+    var seen = {};
+    var boards = [];
+
+    doc.querySelectorAll('a[href*="/board/"]').forEach(function (anchor) {
+      var id = ((anchor.getAttribute("href") || "").match(/\/board\/([a-z_0-9]+)/) || [])[1];
+      if (!id || seen[id]) return;
+      if (["all", "ad", "notice", "best_article"].indexOf(id) >= 0) return;
+      seen[id] = true;
+      boards.push({ id: id, name: text(anchor).replace(/^☆\s*/, "").trim() || id });
+    });
+
+    return boards;
+  }
+
+  function parseAuthorRows(doc, board, boardName) {
+    var rows = [];
+    var postPattern = new RegExp("/board/" + board + "/(\\d+)");
+    // 검색 결과 링크에는 ?searcht=w&search=... 가 붙어 있다. 글 주소만 남긴다.
+    var clean = function (href) { return absolute((href || "").split("?")[0]); };
+
+    // PC: <table class='bd_list'> 안의 <tr>. 회원번호가 닉네임 onclick 에 들어 있다.
+    doc.querySelectorAll("table.bd_list tr").forEach(function (tr) {
+      if (tr.className.indexOf("notice") >= 0) return;
+
+      var link = tr.querySelector("td.tit a[href*='/board/']");
+      if (!link || !postPattern.test(link.getAttribute("href") || "")) return;
+
+      var nickLink = tr.querySelector("td.name a[onclick*='show_nick_dropdown']");
+      var memberNo = nickLink
+        ? ((nickLink.getAttribute("onclick") || "").match(/show_nick_dropdown\([^,]*,\s*'[^']*',\s*'(\d+)'/) || [])[1]
+        : "";
+
+      rows.push({
+        title: text(link) || "(제목 없음)",
+        url: clean(link.getAttribute("href")),
+        boardId: board,
+        boardName: boardName,
+        memberNo: memberNo || "",
+        nick: text(nickLink),
+        date: text(tr.querySelector("td.date")),
+      });
+    });
+
+    if (rows.length) return rows;
+
+    // 모바일: 회원번호가 없어 닉네임으로만 대조할 수 있다.
+    doc.querySelectorAll("li a[href*='/board/']").forEach(function (anchor) {
+      if (!postPattern.test(anchor.getAttribute("href") || "")) return;
+
+      var meta = text(anchor.querySelector("p")).split("|");
+      rows.push({
+        title: text(anchor.querySelector(".subject")) || "(제목 없음)",
+        url: clean(anchor.getAttribute("href")),
+        boardId: board,
+        boardName: boardName,
+        memberNo: "",
+        nick: (meta[0] || "").trim(),
+        date: (meta[1] || "").trim(),
+      });
+    });
+
+    return rows;
+  }
+
+  /** 게시판을 돌며 그 회원 글의 제목에서 단어를 찾는다. */
+  async function judgeByAuthor(member, nick, pagesPerBoard, hits, seen, onProgress) {
+    var boards = await loadBoards();
+    var scanned = 0;
+
+    for (var b = 0; b < boards.length; b++) {
+      if (state.abort) break;
+      var board = boards[b];
+      if (EXCLUDE_BOARDS.indexOf(board.id) >= 0) continue; // 스타대학 제외
+
+      for (var page = 1; page <= pagesPerBoard; page++) {
+        if (state.abort) break;
+
+        var doc;
+        try {
+          doc = await fetchDoc("/board/" + board.id + "/?searcht=w&search=" + encodeURIComponent(nick) + "&page=" + page);
+        } catch (error) {
+          break;
+        }
+
+        var rows = parseAuthorRows(doc, board.id, board.name);
+        if (!rows.length) break;
+
+        var fresh = 0;
+        rows.forEach(function (row) {
+          if (row.memberNo ? row.memberNo !== String(member) : row.nick !== nick) return;
+          if (seen["a|" + row.url]) return;
+          seen["a|" + row.url] = true;
+          fresh++;
+          scanned++;
+
+          var word = WORDS.find(function (candidate) {
+            return row.title.indexOf(candidate) >= 0;
+          });
+          if (!word) return;
+
+          hits.push({
+            kind: "글제목",
+            word: word,
+            title: row.title,
+            sub: row.boardName,
+            url: row.url,
+            boardName: row.boardName,
+            date: row.date,
+          });
+        });
+
+        onProgress(b + 1, boards.length, board.name, scanned, hits.length);
+        if (!fresh) break;
+        await sleep(DELAY);
+      }
+    }
+
+    return scanned;
+  }
+
   /** 작성댓글 목록을 훑어 본문에 단어가 들어간 댓글을 모은다. */
   async function scanComments(member, maxPages, hits, seen, onProgress) {
     var scanned = 0;
@@ -277,6 +404,15 @@
       }
     }
 
+    // 글목록이 잠겨 있으면 게시판 글쓴이 검색으로 돌아간다(제목만 대조).
+    var viaAuthor = false;
+    if (postsBlocked && nick && !state.abort) {
+      viaAuthor = true;
+      scanned += await judgeByAuthor(member, nick, postPages, hits, seen, function (index, total, name, done, found) {
+        onProgress("[" + index + "/" + total + "] " + name + " 글쓴이 검색… 제목 " + done + "건 대조 / 적발 " + found + "건");
+      });
+    }
+
     var commentsScanned = 0;
     var commentsBlocked = false;
     if (!state.abort && commentPages > 0) {
@@ -293,6 +429,7 @@
       commentsScanned: commentsScanned,
       postsBlocked: postsBlocked,
       commentsBlocked: commentsBlocked,
+      viaAuthor: viaAuthor,
       nick: nick,
     };
   }
@@ -383,17 +520,23 @@
     box.textContent = message;
   }
 
+  /** 이번 조회에서 "못 본 구간"을 사람이 읽을 문장으로 만든다. */
+  function limitsOf(result) {
+    var limits = [];
+    if (result.postsBlocked && !result.viaAuthor) limits.push("글목록 비공개");
+    if (result.viaAuthor) limits.push("글목록이 비공개라 제목만 확인");
+    if (result.commentsBlocked) limits.push("댓글목록 비공개");
+    return limits;
+  }
+
   function showPopup(result, member) {
     var hits = result.hits;
     var posts = hits.filter(function (hit) { return hit.kind === "글"; }).length;
     var comments = hits.length - posts;
 
-    // 적발이 하나라도 있으면 그대로 판정한다. 적발이 없는데 목록이 잠겨 있으면
+    // 적발이 하나라도 있으면 그대로 판정한다. 적발이 없는데 못 본 구간이 있으면
     // "안 썼다"가 아니라 "못 봤다"이므로 클린유저로 처리하지 않는다.
-    var blockedNames = [];
-    if (result.postsBlocked) blockedNames.push("글목록");
-    if (result.commentsBlocked) blockedNames.push("댓글목록");
-
+    var blockedNames = limitsOf(result);
     var kind = hits.length ? "bad" : blockedNames.length ? "unknown" : "good";
 
     el("card").className = "card " + kind;
@@ -411,11 +554,9 @@
         "<br>글 " + result.scanned + "건 · 댓글 " + result.commentsScanned + "건을 훑었습니다.";
     } else {
       el("detail").innerHTML =
-        "이 회원이 <b>" + blockedNames.join("과 ") + "</b>을(를) 비공개로 설정했습니다." +
-        "<br>내용을 볼 수 없어 판정할 수 없습니다." +
-        (blockedNames.length === 1
-          ? "<br>공개된 쪽에서는 적발되지 않았습니다."
-          : "");
+        "확인한 범위에서는 적발되지 않았습니다." +
+        "<br>다만 <b>" + escapeHtml(blockedNames.join(", ")) + "</b>이라 전부 보지는 못했습니다." +
+        "<br>결백으로 단정할 수 없습니다.";
     }
 
     el("who2").textContent = (result.nick ? result.nick + " " : "") + "#" + member;
@@ -426,12 +567,10 @@
     var list = el("list");
 
     if (!hits.length) {
-      var locked = [];
-      if (result && result.postsBlocked) locked.push("글목록");
-      if (result && result.commentsBlocked) locked.push("댓글목록");
+      var locked = result ? limitsOf(result) : [];
 
       list.innerHTML = locked.length
-        ? '<div class="empty">🔒 이 회원이 ' + locked.join("과 ") + "을(를) 비공개로 설정해 내용을 볼 수 없습니다.</div>"
+        ? '<div class="empty">🔒 ' + escapeHtml(locked.join(", ")) + " — 전부 확인하지는 못했습니다.</div>"
         : '<div class="empty">해당 단어를 쓴 글이 없습니다.</div>';
       return;
     }
@@ -495,14 +634,12 @@
       el("who").textContent = (result.nick ? result.nick + " " : "") + "#" + member;
       renderHits(result.hits, result);
 
-      var locked = [];
-      if (result.postsBlocked) locked.push("글목록");
-      if (result.commentsBlocked) locked.push("댓글목록");
+      var locked = limitsOf(result);
 
       if (result.hits.length) {
         say("적발 " + result.hits.length + "건. 아래 목록에서 원문을 확인하세요.");
       } else if (locked.length) {
-        say("이 회원은 " + locked.join("과 ") + "을(를) 비공개로 설정했습니다. 판정할 수 없습니다.", "err");
+        say("적발 없음. 다만 " + locked.join(", ") + " — 판정할 수 없습니다.", "err");
       } else {
         say("적발 없음. 훑은 글 " + result.scanned + "건 · 댓글 " + result.commentsScanned + "건.");
       }
